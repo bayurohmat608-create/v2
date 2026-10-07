@@ -1,19 +1,35 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { execFile, spawn } = require("child_process");
+const { execFile, spawn, spawnSync } = require("child_process");
 
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || "127.0.0.1";
+const USER_HOME = process.env.HOME || __dirname;
+const RUNTIME_DIR = process.env.CHAT_AI_RUNTIME_DIR || path.join(__dirname, ".runtime");
+const LOCAL_BIN_DIR = path.join(__dirname, ".local", "bin");
+const NODE_BIN_DIR = path.join(__dirname, "node_modules", ".bin");
+const DEFAULT_AGY_HOME = process.env.ANTIGRAVITY_APP_DATA_DIR || path.join(USER_HOME, ".gemini", "antigravity-cli");
+const DEFAULT_CODEX_HOME = process.env.CODEX_HOME || path.join(USER_HOME, ".codex");
+const RUNTIME_PATH = [
+  LOCAL_BIN_DIR,
+  NODE_BIN_DIR,
+  path.join(USER_HOME, ".local", "bin"),
+  "/usr/local/bin",
+  "/usr/bin",
+  "/bin",
+  process.env.PATH || ""
+].filter(Boolean).join(path.delimiter);
 const PERSONA_A_PATH = path.join(__dirname, "personas", "ai-1-system.md");
 const PERSONA_B_PATH = path.join(__dirname, "personas", "ai-2-system.md");
 const WEB_DIR = path.join(__dirname, "web");
 
 // Workspaces and Shared Chat Files Storage
-const BUDI_WORKSPACE = "/opt/workspaces/budi";
-const RIAN_WORKSPACE = "/opt/workspaces/rian";
-const CHAT_FILES_DIR = path.join(__dirname, "chat_files");
+const BUDI_WORKSPACE = process.env.BUDI_WORKSPACE || path.join(RUNTIME_DIR, "workspaces", "budi");
+const RIAN_WORKSPACE = process.env.RIAN_WORKSPACE || path.join(RUNTIME_DIR, "workspaces", "rian");
+const CHAT_FILES_DIR = process.env.CHAT_FILES_DIR || path.join(RUNTIME_DIR, "chat_files");
 const CHAT_INDEX_FILE = path.join(CHAT_FILES_DIR, "index.json");
-const CHAT_DATA_FILE = path.join(__dirname, "chat_data.json");
+const CHAT_DATA_FILE = process.env.CHAT_DATA_FILE || path.join(RUNTIME_DIR, "chat_data.json");
 
 // Ensure directories exist
 try {
@@ -26,7 +42,7 @@ try {
 }
 
 // ===== WORKSTATION ENGINE STATE (Alpine / Ubuntu) =====
-const WORKSTATION_STATE_FILE = path.join(__dirname, ".workstation_state.json");
+const WORKSTATION_STATE_FILE = path.join(RUNTIME_DIR, "workstation_state.json");
 let activeWorkstation = "alpine";
 if (fs.existsSync(WORKSTATION_STATE_FILE)) {
   try {
@@ -36,7 +52,7 @@ if (fs.existsSync(WORKSTATION_STATE_FILE)) {
 }
 
 // ===== MULTI-PROFILE AUTH VAULT (Antigravity & Codex) =====
-const AUTH_VAULT_DIR = path.join(__dirname, "auth_vault");
+const AUTH_VAULT_DIR = process.env.AUTH_VAULT_DIR || path.join(RUNTIME_DIR, "auth_vault");
 const AUTH_VAULT_FILE = path.join(AUTH_VAULT_DIR, "vault.json");
 
 let authVault = {
@@ -89,7 +105,7 @@ function initAuthVault() {
       const defaultProfiles = [];
 
       // Seed Antigravity default profile
-      const defaultAgyTokenPath = "/public/.gemini/antigravity-cli/antigravity-oauth-token";
+      const defaultAgyTokenPath = path.join(DEFAULT_AGY_HOME, "antigravity-oauth-token");
       let agyEmail = "Akun Utama Antigravity";
       if (fs.existsSync(defaultAgyTokenPath)) {
         try {
@@ -105,12 +121,12 @@ function initAuthVault() {
         email: agyEmail,
         type: "oauth_token",
         masked: "ya29...default",
-        dir: "/public/.gemini/antigravity-cli",
+        dir: DEFAULT_AGY_HOME,
         createdAt: Date.now()
       });
 
       // Seed Codex default profile
-      const defaultCodexAuthPath = "/public/.codex/auth.json";
+      const defaultCodexAuthPath = path.join(DEFAULT_CODEX_HOME, "auth.json");
       let codexEmail = "Akun Utama Codex";
       if (fs.existsSync(defaultCodexAuthPath)) {
         try {
@@ -126,7 +142,7 @@ function initAuthVault() {
         email: codexEmail,
         type: "chatgpt_oauth",
         masked: "chatgpt-default",
-        dir: "/public/.codex",
+        dir: DEFAULT_CODEX_HOME,
         createdAt: Date.now()
       });
 
@@ -240,7 +256,7 @@ function addAuthProfile({ engine, alias, credential, setAsActive }) {
     }
 
     fs.writeFileSync(path.join(profileDir, "antigravity-oauth-token"), tokenJsonStr, { mode: 0o600 });
-    const baseAgy = "/public/.gemini/antigravity-cli";
+    const baseAgy = DEFAULT_AGY_HOME;
     try {
       if (fs.existsSync(path.join(baseAgy, "bin"))) fs.symlinkSync(path.join(baseAgy, "bin"), path.join(profileDir, "bin"));
       if (fs.existsSync(path.join(baseAgy, "builtin"))) fs.symlinkSync(path.join(baseAgy, "builtin"), path.join(profileDir, "builtin"));
@@ -272,8 +288,8 @@ function addAuthProfile({ engine, alias, credential, setAsActive }) {
 
     fs.writeFileSync(path.join(profileDir, "auth.json"), authJsonStr, { mode: 0o600 });
     try {
-      if (fs.existsSync("/public/.codex/config.toml")) {
-        fs.copyFileSync("/public/.codex/config.toml", path.join(profileDir, "config.toml"));
+      if (fs.existsSync(path.join(DEFAULT_CODEX_HOME, "config.toml"))) {
+        fs.copyFileSync(path.join(DEFAULT_CODEX_HOME, "config.toml"), path.join(profileDir, "config.toml"));
       }
     } catch {}
   }
@@ -347,8 +363,8 @@ function startCodexDeviceLogin(alias = "") {
 
     try {
       if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir, { recursive: true });
-      if (fs.existsSync("/public/.codex/config.toml")) {
-        fs.copyFileSync("/public/.codex/config.toml", path.join(profileDir, "config.toml"));
+      if (fs.existsSync(path.join(DEFAULT_CODEX_HOME, "config.toml"))) {
+        fs.copyFileSync(path.join(DEFAULT_CODEX_HOME, "config.toml"), path.join(profileDir, "config.toml"));
       }
     } catch (e) {
       return reject(new Error("Gagal membuat direktori profil Codex: " + e.message));
@@ -357,7 +373,7 @@ function startCodexDeviceLogin(alias = "") {
     const env = {
       ...process.env,
       CODEX_HOME: profileDir,
-      PATH: `/opt/ide-tools/bin:/usr/local/bin:/usr/bin:/bin:/public/.gemini/antigravity-cli/bin:/public/.local/bin:${process.env.PATH || ""}`
+      PATH: RUNTIME_PATH
     };
 
     const child = spawn("codex", ["login", "--device-auth"], {
@@ -645,7 +661,7 @@ async function exchangeGoogleAuthCode(code, sessionOrStateId, customRedirectUri 
   );
 
   // 3. Symlink base CLI resources
-  const baseAgy = "/public/.gemini/antigravity-cli";
+  const baseAgy = DEFAULT_AGY_HOME;
   try {
     if (fs.existsSync(path.join(baseAgy, "bin")) && !fs.existsSync(path.join(session.profileDir, "bin")))
       fs.symlinkSync(path.join(baseAgy, "bin"), path.join(session.profileDir, "bin"));
@@ -686,10 +702,10 @@ async function exchangeGoogleAuthCode(code, sessionOrStateId, customRedirectUri 
 initAuthVault();
 
 // ===== WAKELOCK (anti-kill Android) =====
-const WAKELOCK_FILE = path.join(__dirname, ".wakelock");
-const WAKELOCK_HEARTBEAT_FILE = path.join(__dirname, ".wakelock_heartbeat");
-const WAKELOCK_STOP_FILE = path.join(__dirname, ".wakelock_stop");
-const WAKELOCK_LOG_FILE = path.join(__dirname, "wakelock.log");
+const WAKELOCK_FILE = path.join(RUNTIME_DIR, ".wakelock");
+const WAKELOCK_HEARTBEAT_FILE = path.join(RUNTIME_DIR, ".wakelock_heartbeat");
+const WAKELOCK_STOP_FILE = path.join(RUNTIME_DIR, ".wakelock_stop");
+const WAKELOCK_LOG_FILE = path.join(RUNTIME_DIR, "wakelock.log");
 
 let wakelock = {
   acquired: false,
@@ -788,7 +804,12 @@ process.on("unhandledRejection", (reason) => {
   console.error("⚠️ unhandledRejection (tidak exit karena wakelock):", reason);
 });
 
-acquireWakelock("auto-boot");
+const WAKELOCK_DISABLED = ["1", "true", "yes"].includes(String(process.env.WAKELOCK_DISABLED || "").toLowerCase());
+if (WAKELOCK_DISABLED) {
+  wakelog("🔓 Wakelock dinonaktifkan oleh environment (mode test/managed runtime).");
+} else {
+  acquireWakelock("auto-boot");
+}
 
 const DEFAULT_MODELS = [
   // --- Antigravity Engine Models ---
@@ -855,6 +876,45 @@ function resolveModelId(input) {
   if (found) return found.id;
 
   return input.trim();
+}
+
+function probeEngine(command) {
+  try {
+    const out = spawnSync(command, ["--version"], {
+      encoding: "utf8",
+      timeout: 5000,
+      env: { ...process.env, HOME: USER_HOME, PATH: RUNTIME_PATH }
+    });
+    const version = String(out.stdout || out.stderr || "").trim().split("\n")[0] || null;
+    return {
+      ok: !out.error && out.status === 0,
+      command,
+      version,
+      exitCode: typeof out.status === "number" ? out.status : null,
+      error: out.error ? out.error.message : null
+    };
+  } catch (err) {
+    return { ok: false, command, version: null, exitCode: null, error: err.message };
+  }
+}
+
+function getRuntimeHealth() {
+  const engines = {
+    antigravity: probeEngine("agy"),
+    opencode: probeEngine("opencode"),
+    codex: probeEngine("codex")
+  };
+  return {
+    ok: Object.values(engines).every(e => e.ok),
+    platform: process.platform,
+    arch: process.arch,
+    node: process.version,
+    host: HOST,
+    port: Number(PORT),
+    runtimeDir: RUNTIME_DIR,
+    workspaces: { budi: BUDI_WORKSPACE, rian: RIAN_WORKSPACE },
+    engines
+  };
 }
 
 // Helper to load persisted data
@@ -1353,22 +1413,20 @@ function executeAgyCli(model, prompt, speaker = "A", currentChatId = "group") {
     const activeAgy = getActiveAuthProfile("antigravity", speaker);
     const agyAppDataDir = (activeAgy && activeAgy.dir && fs.existsSync(activeAgy.dir))
       ? activeAgy.dir
-      : "/public/.gemini/antigravity-cli";
+      : DEFAULT_AGY_HOME;
 
     const env = {
       ...process.env,
       GODEBUG: "netdns=cgo",
-      HOME: "/public",
+      HOME: USER_HOME,
       USER: userName,
       WORKSPACE: workspaceDir,
       CURRENT_CHAT_ID: currentChatId || "group",
       ANTIGRAVITY_APP_DATA_DIR: agyAppDataDir,
-      PATH: `/opt/ide-tools/bin:/usr/local/bin:/usr/bin:/bin:/public/.gemini/antigravity-cli/bin:/public/.local/bin:${process.env.PATH || ""}`
+      PATH: RUNTIME_PATH
     };
 
-    const args = [
-      "--dangerously-skip-permissions"
-    ];
+    const args = [];
     if (model) {
       args.push("--model", model);
     }
@@ -1403,11 +1461,11 @@ function executeOpencodeCli(model, prompt, speaker = "A", currentChatId = "group
     const env = {
       ...process.env,
       GODEBUG: "netdns=cgo",
-      HOME: "/public",
+      HOME: USER_HOME,
       USER: userName,
       WORKSPACE: workspaceDir,
       CURRENT_CHAT_ID: currentChatId || "group",
-      PATH: `/opt/ide-tools/bin:/usr/local/bin:/usr/bin:/bin:/public/.gemini/antigravity-cli/bin:/public/.local/bin:${process.env.PATH || ""}`
+      PATH: RUNTIME_PATH
     };
 
     const args = [
@@ -1503,26 +1561,26 @@ function executeCodexCli(model, prompt, speaker = "A", currentChatId = "group") 
     const activeCodex = getActiveAuthProfile("codex", speaker);
     const codexHomeDir = (activeCodex && activeCodex.dir && fs.existsSync(activeCodex.dir))
       ? activeCodex.dir
-      : "/public/.codex";
+      : DEFAULT_CODEX_HOME;
 
     const env = {
       ...process.env,
       GODEBUG: "netdns=cgo",
-      HOME: "/public",
+      HOME: USER_HOME,
       USER: userName,
       WORKSPACE: workspaceDir,
       CURRENT_CHAT_ID: currentChatId || "group",
       CODEX_HOME: codexHomeDir,
-      PATH: `/opt/ide-tools/bin:/usr/local/bin:/usr/bin:/bin:/public/.gemini/antigravity-cli/bin:/public/.local/bin:${process.env.PATH || ""}`
+      PATH: RUNTIME_PATH
     };
 
     const tempOutFile = path.join("/tmp", `codex_out_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.txt`);
     const codexModelName = (model || "").replace(/^codex[\/:]/, "") || "gpt-6.1-sol";
 
     const args = [
+      "--approve-for-me",
       "exec",
       "--skip-git-repo-check",
-      "--dangerously-bypass-approvals-and-sandbox",
       "-m", codexModelName,
       "-C", workspaceDir,
       "-o", tempOutFile,
@@ -2508,8 +2566,24 @@ setInterval(() => {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || "localhost:" + PORT}`);
 
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // Same-origin CORS. Native/CLI calls without Origin remain allowed.
+  const origin = req.headers.origin;
+  if (origin) {
+    const host = req.headers.host || `127.0.0.1:${PORT}`;
+    const allowed = new Set([
+      `http://${host}`,
+      `https://${host}`,
+      `http://127.0.0.1:${PORT}`,
+      `http://localhost:${PORT}`
+    ]);
+    if (!allowed.has(origin)) {
+      res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ error: "Origin tidak diizinkan" }));
+      return;
+    }
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
@@ -2549,6 +2623,13 @@ const server = http.createServer((req, res) => {
   if (url.pathname === "/api/status" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify(getPublicStatus()));
+    return;
+  }
+
+  if (url.pathname === "/api/health" && req.method === "GET") {
+    const health = getRuntimeHealth();
+    res.writeHead(health.ok ? 200 : 503, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify(health));
     return;
   }
 
@@ -2617,52 +2698,13 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Interactive Terminal Command Execution Endpoint (Droide IDE Engine)
+  // Raw shell execution is intentionally disabled in the HTTP backend.
+  // Android uses the native TerminalSession/NativeBridge path instead.
   if (url.pathname === "/api/terminal/exec" && req.method === "POST") {
-    let body = "";
-    req.on("data", (chunk) => (body += chunk));
-    req.on("end", () => {
-      try {
-        const parsed = JSON.parse(body || "{}");
-        const command = (parsed.command || "").trim();
-        if (!command) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          return res.end(JSON.stringify({ error: "Perintah tidak boleh kosong" }));
-        }
-
-        const cwd = BUDI_WORKSPACE && fs.existsSync(BUDI_WORKSPACE) ? BUDI_WORKSPACE : __dirname;
-        const { exec } = require("child_process");
-        exec(command, { cwd, timeout: 20000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
-          const exitCode = err ? (err.code || 1) : 0;
-          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-          res.end(JSON.stringify({
-            exitCode,
-            stdout: stdout || "",
-            stderr: stderr || (err ? err.message : ""),
-            workstation: activeWorkstation,
-            cwd
-          }));
-
-          // If command failed and reportError is set, broadcast feedback to AI team
-          if (exitCode !== 0 && parsed.reportError) {
-            const feedbackMsg = {
-              id: `sys-term-${Date.now()}`,
-              chatId: state.activeChat || "group",
-              type: "system",
-              text: `⚠️ **Terminal Feedback Loop (Droide Engine)**:\nPerintah: \`${command}\` gagal (Exit: ${exitCode})\nDetail:\n\`\`\`\n${(stderr || err.message).slice(0, 300)}\n\`\`\``,
-              time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
-            };
-            if (!state.chats[feedbackMsg.chatId]) state.chats[feedbackMsg.chatId] = [];
-            state.chats[feedbackMsg.chatId].push(feedbackMsg);
-            saveChatData();
-            broadcastSSE("message", feedbackMsg);
-          }
-        });
-      } catch (e) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: e.message }));
-      }
-    });
+    res.writeHead(409, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({
+      error: "Raw terminal execution via HTTP dinonaktifkan di v2. Gunakan terminal native Android."
+    }));
     return;
   }
 
@@ -3816,7 +3858,7 @@ server.on("error", (err) => {
   }
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server WhatsApp Web Super App AI berjalan di http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`🚀 Server WhatsApp Web Super App AI berjalan di http://${HOST}:${PORT}`);
   console.log(`🔒 Wakelock AKTIF (pid=${process.pid}) — tolak SIGTERM/SIGINT/SIGHUP kecuali .wakelock_stop ada / release via API.`);
 });
