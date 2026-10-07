@@ -55,8 +55,8 @@ class MainActivity : AppCompatActivity() {
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        // Permissions evaluated
+    ) { _ ->
+        // Permissions evaluated by WebView callbacks when needed.
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,6 +108,7 @@ class MainActivity : AppCompatActivity() {
     private fun requestRequiredPermissions() {
         val permissions = mutableListOf(
             Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.CAMERA,
             Manifest.permission.MODIFY_AUDIO_SETTINGS
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -125,7 +126,6 @@ class MainActivity : AppCompatActivity() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            databaseEnabled = true
             mediaPlaybackRequiresUserGesture = false
             allowFileAccess = true
             allowContentAccess = true
@@ -137,13 +137,30 @@ class MainActivity : AppCompatActivity() {
         webView.webChromeClient = object : WebChromeClient() {
             // Auto-grant microphone for Voice Notes & WhatsApp Calls
             override fun onPermissionRequest(request: PermissionRequest?) {
-                request?.let {
-                    val requestedResources = it.resources
-                    val isAudio = requestedResources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)
-                    if (isAudio && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                        it.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+                request ?: return
+                runOnUiThread {
+                    val allowed = request.resources.filter { resource ->
+                        when (resource) {
+                            PermissionRequest.RESOURCE_AUDIO_CAPTURE ->
+                                ContextCompat.checkSelfPermission(
+                                    this@MainActivity,
+                                    Manifest.permission.RECORD_AUDIO
+                                ) == PackageManager.PERMISSION_GRANTED
+
+                            PermissionRequest.RESOURCE_VIDEO_CAPTURE ->
+                                ContextCompat.checkSelfPermission(
+                                    this@MainActivity,
+                                    Manifest.permission.CAMERA
+                                ) == PackageManager.PERMISSION_GRANTED
+
+                            else -> false
+                        }
+                    }
+
+                    if (allowed.isNotEmpty()) {
+                        request.grant(allowed.toTypedArray())
                     } else {
-                        it.grant(it.resources)
+                        request.deny()
                     }
                 }
             }
@@ -184,6 +201,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun showTerminalOverlay(sessionType: String = "alpine") {
+        workstationManager.switchWorkstation(sessionType)
         val dialog = TerminalOverlayDialog(this, workstationManager, prootManager)
         dialog.show()
     }
