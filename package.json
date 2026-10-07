@@ -1,5 +1,14 @@
 {
+  "scripts": {
+    "start": "node server.js",
+    "doctor": "bash scripts/doctor.sh",
+    "test": "bash scripts/smoke-test.sh"
+  },
   "dependencies": {
-    "@openai/codex": "^0.160.1"
+    "@openai/codex": "^0.160.1",
+    "@opencode/cli": "^2.0.24"
+  },
+  "allowScripts": {
+    "@opencode/cli": true
   }
 }
