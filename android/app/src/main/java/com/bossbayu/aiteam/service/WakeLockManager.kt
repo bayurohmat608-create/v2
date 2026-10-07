@@ -2,6 +2,7 @@ package com.bossbayu.aiteam.service
 
 import android.content.Context
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.PowerManager
 import android.util.Log
 
@@ -38,8 +39,14 @@ class WakeLockManager(private val context: Context) {
             }
 
             if (wifiLock == null) {
+                val wifiMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                } else {
+                    @Suppress("DEPRECATION")
+                    WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                }
                 wifiLock = wifiManager?.createWifiLock(
-                    WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                    wifiMode,
                     WIFI_LOCK_TAG
                 )?.apply {
                     setReferenceCounted(false)
