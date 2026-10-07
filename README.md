@@ -1,95 +1,136 @@
-# 💬 WhatsApp AI Team — Budi & Rian
-**Sistem Tim AI Otonom Berbasis Antarmuka Asli WhatsApp Web & Terminal TUI**
+# WhatsApp AI Team v2 — Budi & Rian
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Node.js](https://img.shields.io/badge/Node.js-v18+-green.svg)](https://nodejs.org/)
-[![Engines](https://img.shields.io/badge/Engines-Antigravity_|_Codex_|_Opencode-teal.svg)](#arsitektur-engine)
-[![Platform](https://img.shields.io/badge/Platform-Linux_|_Android_|_macOS-orange.svg)](#instalasi-cepat)
+Standalone local-first AI team workspace with a WhatsApp-inspired web interface, terminal TUI, native Android host, and three CLI engine integrations: Google Antigravity, OpenAI Codex, and OpenCode.
 
-Aplikasi kolaborasi tim AI mandiri dengan antarmuka **WhatsApp Web v3.2** dan **Terminal TUI Konsol**. Menghadirkan dua persona AI setia yang siap mengeksekusi proyek coding dan tugas teknis di bawah arahan **Boss Bayu**:
-- **Budi (Tech Lead)**: Kritis, berorientasi arsitektur, disiplin tinggi, mengawasi kode dan standar teknis.
-- **Rian (Developer Lapangan)**: Cepat, santai gaya tongkrongan, praktis, langsung eksekusi tanpa bertele-tele.
+## What v2 changes
 
----
+v2 is the clean runtime baseline. Persistent user state is stored under `.runtime/` instead of the source tree, engine binaries are validated before startup, the backend binds to loopback by default, CORS is same-origin, and raw shell execution over HTTP is disabled.
 
-## ⚡ Instalasi Cepat (Terminal & Web)
+On Android, terminal execution is handled by the native terminal bridge. The APK build consumes the canonical root `server.js`, `cli.js`, `web/`, and `personas/` at build time, so there is only one runtime source of truth.
 
-Cukup satu perintah di terminal Linux / Android Termux / macOS:
+## Requirements
+
+- Node.js 18 or newer
+- npm
+- curl
+- Google Antigravity CLI (`agy`) installed and available on `PATH`
+- Linux, macOS, Android/Termux, or another compatible Node.js host
+
+OpenAI Codex CLI and OpenCode CLI are installed as project dependencies and select their native package for the current OS/CPU.
+
+## Install
 
 ```bash
-git clone https://github.com/bayurohmat608-create/chat-your-agent-partner-like-human-partner.git whatsapp-ai-team
-cd whatsapp-ai-team
+git clone https://github.com/bayurohmat608-create/v2.git whatsapp-ai-team-v2
+cd whatsapp-ai-team-v2
 ./install.sh
 ```
 
-### 1. Mode Terminal TUI (Langsung Chat di Konsol):
+The installer fails loudly if a required engine is missing or not executable. For an intentionally partial environment:
+
 ```bash
-./start.sh --terminal
-# atau langsung:
-node cli.js
+ALLOW_PARTIAL_ENGINES=1 ./install.sh
 ```
 
-### 2. Mode Web App (Tampilan WhatsApp Web Lengkap):
+## Run
+
+Web app:
+
 ```bash
 ./start.sh
 ```
-Lalu buka browser Anda di: **`http://localhost:3000`**
 
----
+Default address: `http://127.0.0.1:3000`.
 
-## 🚀 Fitur Unggulan
+Terminal TUI:
 
-1. **Antarmuka Asli WhatsApp Web v3.2**:
-   - Tampilan gelap (*Dark*) & terang (*Light*), gelembung obrolan autentik dengan tanda centang biru ganda dan tail.
-   - Panggilan suara & video WhatsApp terintegrasi.
-   - Perekaman Voice Note langsung dengan visualisasi gelombang suara (*waveform*).
-   - Pengiriman snippet kode dengan syntax highlighting dan tombol salin/lipat.
-   - Status cerita WhatsApp (Stories) untuk update status perkembangan proyek oleh Budi & Rian.
-
-2. **Dual-Engine Simultan & Multi-Profile Auth Vault**:
-   - **Login Asli Google OAuth 2.0**: Menggunakan kuota langganan Gemini Pro / Ultra bawaan akun Google Anda.
-   - **Login Asli OpenAI Device Auth**: Menggunakan kuota langganan ChatGPT Plus / Pro bawaan akun OpenAI Anda.
-   - **Opencode Engine**: Menjalankan model komunitas lokal dan open-source secara mandiri tanpa token berbayar.
-   - Budi dan Rian dapat menggunakan provider model berbeda secara serentak di workspace terpisah (`.runtime/workspaces/budi` dan `.runtime/workspaces/rian`) tanpa bentrok.
-
-3. **Workstation Mandiri & Android Blueprint**:
-   - Dilengkapi cetak biru arsitektur mandiri Android (Kotlin + PRoot Dual Workstation).
-   - Workstation bawaan: **Alpine Linux (musl)** super ringan (~15 MB RAM).
-   - Workstation on-demand: **Ubuntu 24.04 (glibc)** yang bisa dipasang dan diganti kapan saja via perintah chat.
-   - In-app terminal overlay untuk memantau log eksekusi dan mengeksekusi perintah shell langsung di perangkat.
-
----
-
-## 📁 Struktur Direktori
-
-```text
-.
-├── server.js               # Backend HTTP & Realtime SSE Server (3.6k baris)
-├── cli.js                  # WhatsApp Terminal TUI Client
-├── start.sh                # Skrip peluncur mode web atau terminal
-├── install.sh              # Skrip installer otomatis
-├── web/                    # Frontend WhatsApp Web v3.2 (HTML, CSS, JS, SVG Doodle)
-├── auth_vault/             # Penyimpanan multi-profil token resmi (Google & OpenAI)
-├── personas/               # Konfigurasi sistem prompt Budi & Rian
-├── android/                # Proyek Android Native (Kotlin, Foreground Service, PRoot)
-├── LICENSE                 # Lisensi Resmi Apache 2.0
-└── README.md
+```bash
+./start.sh --terminal
 ```
 
----
+The server binds to loopback by default. Set `HOST` explicitly only when you intentionally need another bind address.
 
-## 📄 Lisensi & Komponen Pihak Ketiga (Third-Party Notices)
+## Verify
 
-Proyek ini dilisensikan di bawah **[Apache License 2.0](LICENSE)**. Anda bebas menggunakan, memodifikasi, dan mendistribusikan perangkat lunak ini sesuai dengan ketentuan lisensi Apache 2.0.
+```bash
+npm run doctor
+npm test
+```
 
-Semua komponen pihak ketiga (*third-party*) yang digunakan atau diintegrasikan bersifat lisensi permisif (*permissive open-source*) yang kompatibel 100% dengan Apache 2.0:
+`doctor` checks the runtime, source syntax, required assets, and all three CLI engines. `npm test` starts an isolated server and verifies the web root, status/model/health endpoints, engine health, and auth-vault redaction.
 
-| Komponen | Lisensi | Pemilik / Pengembang | Deskripsi |
-| :--- | :--- | :--- | :--- |
-| **OpenAI Codex CLI** (`@openai/codex`) | **Apache-2.0** | OpenAI | Driver eksekusi AI coding untuk Rian |
-| **OpenCode CLI** (`opencode`) | **MIT** | Tim OpenCode | Engine AI lokal / model komunitas gratis |
-| **Highlight.js** | **BSD-3-Clause** | Ivan Sagalaev & Kontributor | Syntax highlighting pada Web UI WhatsApp |
-| **Android Jetpack & AndroidX** | **Apache-2.0** | Android Open Source Project | Fondasi UI & Service aplikasi Android Native |
-| **Google Antigravity CLI** (`agy`) | **Developer Preview** | Google | Engine AI orchestration untuk Budi |
+## Runtime layout
 
-Dokumentasi atribusi resmi lengkap dapat dilihat pada file **[NOTICE](NOTICE)**.\n\n### 3. Diagnostik & Smoke Test\n\n    npm run doctor\n    npm test\n\nInstaller sekarang memvalidasi binary engine sesuai OS/arsitektur host. Instalasi gagal dengan jelas bila engine wajib tidak executable.\n
+```text
+.runtime/
+├── auth_vault/
+├── chat_data.json
+├── chat_files/
+├── workspaces/
+│   ├── budi/
+│   └── rian/
+├── wakelock.log
+└── ...
+```
+
+Runtime files, credentials, logs, local engine links, build outputs, APKs, and archives are ignored by Git.
+
+## Android
+
+The Android host is under `android/`.
+
+Current build baseline:
+
+- minSdk 26
+- compileSdk 36
+- targetSdk 36
+- JDK 17
+- Android Gradle Plugin 8.13.2
+- Gradle 8.13
+
+Build:
+
+```bash
+cd android
+./gradlew assembleDebug
+```
+
+The build task generates runtime assets from the repository root before packaging. The in-app terminal uses the native Android terminal path; `/api/terminal/exec` intentionally does not provide a raw HTTP shell in v2.
+
+## Security model
+
+- Backend binds to `127.0.0.1` by default.
+- Browser API access is same-origin instead of wildcard CORS.
+- Auth credentials stay in the runtime vault and are never returned by the public vault API.
+- Antigravity runs with sandbox restrictions and accept-edits mode instead of the dangerous permission-bypass flag.
+- Codex uses automatic approval with its workspace-write sandbox instead of the full sandbox bypass flag.
+- Raw shell execution through the HTTP backend is disabled.
+- Android WebView grants microphone/camera resources only when the corresponding Android runtime permission is granted.
+- Android app backup is disabled so private runtime/auth state is not copied by Android backup.
+
+## Main components
+
+```text
+server.js                     Local HTTP/SSE backend and engine orchestration
+cli.js                        Terminal TUI
+web/                          WhatsApp-inspired web UI
+personas/                     Budi and Rian persona instructions
+scripts/doctor.sh             Environment/runtime diagnostics
+scripts/smoke-test.sh         Automated backend smoke tests
+scripts/publish_release.sh    Release helper using authenticated GitHub CLI
+android/                      Native Android host, runtime, PRoot and terminal
+```
+
+## Release
+
+Release helper requires the GitHub CLI and an existing authenticated `gh` session. It never accepts a GitHub token as a positional argument.
+
+```bash
+scripts/publish_release.sh bayurohmat608-create/v2 v2.0.0 "WhatsApp AI Team v2"
+```
+
+Optional asset paths may be added after the title.
+
+## License
+
+Project source is licensed under Apache License 2.0. See `LICENSE` and `NOTICE` for license and third-party attribution information.
