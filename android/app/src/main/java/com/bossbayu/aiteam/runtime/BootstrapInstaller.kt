@@ -53,8 +53,8 @@ class BootstrapInstaller(private val context: Context) {
                 callback.onProgress(85, "Menyiapkan perizinan biner AI engine...")
                 copyAssetFolder("engines", enginesDir)
                 enginesDir.listFiles()?.forEach { file ->
-                    file.setExecutable(true, false)
-                    file.setReadable(true, false)
+                    file.setExecutable(true, true)
+                    file.setReadable(true, true)
                 }
 
                 callback.onProgress(100, "Instalasi selesai!")
