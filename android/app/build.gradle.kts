@@ -18,12 +18,12 @@ val syncRuntimeAssets by tasks.registering(Sync::class) {
 
 android {
     namespace = "com.bossbayu.aiteam"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.bossbayu.aiteam"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
 
