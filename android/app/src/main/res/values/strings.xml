@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">WhatsApp AI Tim</string>
+    <string name="service_notification_title">Tim AI Boss Bayu Aktif</string>
+    <string name="service_notification_desc">Budi &amp; Rian siap melayani (Workstation: Aktif)</string>
+    <string name="channel_name">Layanan AI Engine Latar Belakang</string>
+    <string name="channel_desc">Menjaga server Node.js dan CLI AI tetap berjalan saat layar mati</string>
+    <string name="loading_title">Memulai Tim AI...</string>
+    <string name="loading_extract">Mengekstrak workstation dan runtime...</string>
+    <string name="loading_server">Memulai server lokal...</string>
+    <string name="terminal_title">Terminal Workstation Konsol</string>
+    <string name="terminal_clear">Bersihkan</string>
+    <string name="terminal_close">Tutup</string>
+    <string name="btn_terminal">Terminal</string>
+</resources>

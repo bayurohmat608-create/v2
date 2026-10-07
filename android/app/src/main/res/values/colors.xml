@@ -1,0 +1,10 @@
+<resources>
+    <color name="wa_teal">#00A884</color>
+    <color name="wa_teal_dark">#005C4B</color>
+    <color name="wa_bg_deep">#111B21</color>
+    <color name="wa_bg_panel">#202C33</color>
+    <color name="wa_text_primary">#E9EDEF</color>
+    <color name="wa_text_secondary">#8696A0</color>
+    <color name="terminal_black">#0D1117</color>
+    <color name="terminal_green">#34D399</color>
+</resources>

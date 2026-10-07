@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/wa_bg_deep">
+
+    <!-- Primary Fullscreen WhatsApp Web View -->
+    <WebView
+        android:id="@+id/webView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Initial Booting / Extraction Overlay -->
+    <LinearLayout
+        android:id="@+id/loadingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@color/wa_bg_deep"
+        android:padding="32dp"
+        android:visibility="visible">
+
+        <ProgressBar
+            android:id="@+id/loadingProgress"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:indeterminateTint="@color/wa_teal" />
+
+        <TextView
+            android:id="@+id/tvLoadingTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/loading_title"
+            android:textColor="@color/wa_text_primary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvLoadingStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/loading_extract"
+            android:textColor="@color/wa_text_secondary"
+            android:textSize="14sp"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- Floating Action Button for Terminal Console -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabTerminal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:contentDescription="@string/terminal_title"
+        android:src="@drawable/ic_launcher_foreground"
+        app:backgroundTint="@color/wa_bg_panel"
+        app:tint="@color/wa_teal"
+        app:elevation="8dp"
+        app:fabSize="mini" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

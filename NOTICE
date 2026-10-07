@@ -1,0 +1,43 @@
+WhatsApp AI Team (Budi & Rian)
+Copyright (c) 2026 Boss Bayu (bayurohmat608-create)
+
+This product includes software developed under the Apache License 2.0
+and incorporates or interfaces with third-party open-source and proprietary
+components as described below:
+
+================================================================================
+THIRD-PARTY OPEN SOURCE NOTICES & LICENSES
+================================================================================
+
+1. OpenAI Codex CLI (@openai/codex)
+   - License: Apache License 2.0
+   - Copyright: OpenAI
+   - Url: https://github.com/openai/codex
+   - Terms: Permissive distribution under Apache-2.0.
+
+2. OpenCode CLI (opencode)
+   - License: MIT License
+   - Copyright: OpenCode Contributors
+   - Terms: Permissive distribution under MIT License.
+
+3. Highlight.js
+   - License: BSD 3-Clause "New" or "Revised" License
+   - Copyright (c) 2006-2024 Ivan Sagalaev and highlight.js contributors
+   - Terms: Permissive distribution under BSD-3-Clause.
+
+4. Android Open Source Project (AOSP / AndroidX / Jetpack)
+   - License: Apache License 2.0
+   - Copyright (c) The Android Open Source Project
+   - Terms: Permissive distribution under Apache-2.0.
+
+5. Google Antigravity CLI (agy)
+   - Antigravity AI Engine orchestration CLI.
+   - Distributed for developer workflows in accordance with Antigravity Developer Preview Terms.
+
+================================================================================
+DISCLAIMER & LIMITATION OF LIABILITY
+================================================================================
+All third-party software and components remain the property and copyright
+of their respective owners and are subject to their original licenses.
+See LICENSE file for full terms of the Apache License 2.0 under which this
+project is provided.

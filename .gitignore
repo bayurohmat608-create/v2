@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Large binaries & release archives (distributed via GitHub Releases)
+*.tar.gz
+*.tar.xz
+release_staging/
+skills/
+backup_pre_android/
+backup_pre_android_full.tar.gz
+
+# User chat uploads (keep directory with .gitkeep)
+chat_files/*
+!chat_files/.gitkeep
+
+# Sensitive auth credentials & tokens
+auth_vault/
+.gemini/
+.codex/
+.cache/
+.config/
+.local/
+*.pid
+.wakelock*
+.workstation_state.json
+.cooldown.*
+.guard.*
+.restart.*
+.dead.*
+*.log
+.bash_history
+.bashrc
+.gitconfig
+
+# Temporary files
+test_cat.png
+.wget-hsts
+
+# Android build outputs
+.gradle/
+build/
+app/build/
+android/.gradle/
+android/app/build/
+*.apk
+*.aab
+.runtime/
+.vendor/
+.server.pid

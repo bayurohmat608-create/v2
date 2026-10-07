@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/terminal_black">
+
+    <!-- Terminal Header Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/wa_bg_panel"
+        android:paddingHorizontal="12dp">
+
+        <TextView
+            android:id="@+id/tvTerminalTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Terminal Workstation (Alpine)"
+            android:textColor="@color/wa_text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnTerminalClear"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Clear"
+            android:textSize="12sp"
+            android:textColor="@color/wa_text_secondary"
+            style="@style/Widget.MaterialComponents.Button.TextButton" />
+
+        <Button
+            android:id="@+id/btnTerminalClose"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Tutup"
+            android:textSize="12sp"
+            android:textColor="@color/wa_teal"
+            style="@style/Widget.MaterialComponents.Button.TextButton" />
+    </LinearLayout>
+
+    <!-- Terminal Output Scrollable Container -->
+    <ScrollView
+        android:id="@+id/scrollTerminal"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/tvTerminalOutput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textColor="@color/terminal_green"
+            android:textSize="12sp"
+            android:lineSpacingExtra="2dp"
+            android:textIsSelectable="true" />
+    </ScrollView>
+
+    <!-- Virtual Accessory Toolbar (ESC, CTRL, ALT, TAB, Nav Arrows) -->
+    <com.bossbayu.aiteam.terminal.TerminalToolbar
+        android:id="@+id/terminalToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <!-- Terminal Command Input Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/wa_bg_panel"
+        android:paddingHorizontal="8dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="$ "
+            android:textColor="@color/wa_teal"
+            android:fontFamily="monospace"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/etTerminalCommand"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:hint="Ketik perintah (cth: uname -a, apk info)..."
+            android:textColorHint="@color/wa_text_secondary"
+            android:textColor="@color/wa_text_primary"
+            android:fontFamily="monospace"
+            android:textSize="13sp"
+            android:singleLine="true"
+            android:imeOptions="actionSend" />
+
+        <ImageButton
+            android:id="@+id/btnTerminalSend"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_send"
+            android:contentDescription="Jalankan Perintah" />
+    </LinearLayout>
+
+</LinearLayout>

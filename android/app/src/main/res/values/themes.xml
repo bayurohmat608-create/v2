@@ -1,0 +1,10 @@
+<resources>
+    <style name="Theme.WhatsAppAITeam" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/wa_teal</item>
+        <item name="colorPrimaryVariant">@color/wa_teal_dark</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="android:windowBackground">@color/wa_bg_deep</item>
+        <item name="android:statusBarColor">@color/wa_bg_panel</item>
+        <item name="android:navigationBarColor">@color/wa_bg_deep</item>
+    </style>
+</resources>

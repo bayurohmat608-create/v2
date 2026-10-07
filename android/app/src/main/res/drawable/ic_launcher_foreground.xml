@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.55"
+        android:scaleY="0.55"
+        android:translateX="24.3"
+        android:translateY="24.3">
+        <!-- Outer Circle / Shield -->
+        <path
+            android:fillColor="#00A884"
+            android:pathData="M54,4 C26.4,4 4,26.4 4,54 C4,63.5 6.7,72.4 11.5,79.9 L5.8,101.2 L28,95.6 C35.2,99.7 44.3,102 54,102 C81.6,102 104,79.6 104,54 C104,26.4 81.6,4 54,4 Z" />
+        <!-- Code / Terminal Brackets < / > -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M38,42 L26,54 L38,66 M70,42 L82,54 L70,66 M58,38 L50,70"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>
