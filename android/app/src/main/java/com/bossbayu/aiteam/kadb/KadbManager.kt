@@ -61,11 +61,15 @@ class KadbManager(private val context: Context) {
     suspend fun executeCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
         try {
             val adbBin = findAdbExecutable()
-            val cmdList = if (adbBin != null) {
-                listOf(adbBin, "-s", "127.0.0.1:$currentPort", "shell", command)
-            } else {
-                listOf("sh", "-c", command)
+            if (adbBin == null) {
+                return@withContext CommandResult(
+                    -1,
+                    "",
+                    "ADB client tidak tersedia di runtime aplikasi. Instal/provisikan ADB terlebih dahulu."
+                )
             }
+
+            val cmdList = listOf(adbBin, "-s", "127.0.0.1:$currentPort", "shell", command)
 
             val process = ProcessBuilder(cmdList)
                 .directory(context.filesDir)
@@ -86,15 +90,19 @@ class KadbManager(private val context: Context) {
      * Mencari binary executable adb di app sandbox atau environment path.
      */
     private fun findAdbExecutable(): String? {
-        val candidates = listOf(
+        val candidates = mutableListOf(
             File(context.filesDir, "bin/adb"),
-            File(context.filesDir, "engines/adb"),
-            File("/data/data/com.termux/files/usr/bin/adb")
+            File(context.filesDir, "engines/adb")
         )
-        for (f in candidates) {
-            if (f.exists() && f.canExecute()) return f.absolutePath
-        }
-        return null
+
+        val pathEntries = (System.getenv("PATH") ?: "")
+            .split(File.pathSeparator)
+            .filter { it.isNotBlank() }
+        candidates += pathEntries.map { File(it, "adb") }
+
+        return candidates
+            .firstOrNull { it.exists() && it.canExecute() }
+            ?.absolutePath
     }
 
     /**
