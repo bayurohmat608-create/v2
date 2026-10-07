@@ -248,6 +248,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            if (!isUp) {
+                tvLoadingStatus.text =
+                    "Runtime lokal belum siap. Pastikan runtime pack Android (Node.js, PRoot, rootfs, dan engine) sudah tersedia."
+                return@launch
+            }
+
             tvLoadingStatus.text = "Memuat antarmuka Tim AI..."
             webView.loadUrl("http://127.0.0.1:3000")
         }
