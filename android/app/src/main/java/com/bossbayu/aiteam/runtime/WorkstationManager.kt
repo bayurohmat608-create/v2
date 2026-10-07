@@ -73,6 +73,11 @@ class WorkstationManager(private val context: Context) {
             Log.d(TAG, "Initializing default Alpine Linux workstation...")
             extractAlpineFromAssets()
         }
+
+        check(File(alpineDir, "bin/sh").exists()) {
+            "Alpine rootfs belum tersedia. Runtime pack Android v2 harus menyertakan rootfs yang valid."
+        }
+
         budiWorkspace
         rianWorkspace
     }
@@ -92,12 +97,13 @@ class WorkstationManager(private val context: Context) {
                 destFile.delete()
                 Log.d(TAG, "Alpine Linux rootfs extracted successfully.")
             } else {
-                // If not pre-bundled in assets during dev, initialize minimal directory structure
-                createMinimalRootfs(alpineDir)
+                throw IllegalStateException(
+                    "Asset rootfs Alpine tidak ditemukan. APK ini belum memiliki runtime pack Linux."
+                )
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to extract Alpine rootfs: ${e.message}", e)
-            createMinimalRootfs(alpineDir)
+            throw e
         }
     }
 
@@ -160,14 +166,12 @@ class WorkstationManager(private val context: Context) {
     private fun unpackArchive(archiveFile: File, targetDir: File) {
         // Run tar -x via local runtime or process builder
         val process = ProcessBuilder("tar", "-xf", archiveFile.absolutePath, "-C", targetDir.absolutePath)
+            .redirectErrorStream(true)
             .start()
-        process.waitFor()
-    }
-
-    private fun createMinimalRootfs(dir: File) {
-        File(dir, "bin").mkdirs()
-        File(dir, "usr/bin").mkdirs()
-        File(dir, "etc").mkdirs()
-        File(dir, "tmp").mkdirs()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        val exitCode = process.waitFor()
+        check(exitCode == 0) {
+            "Gagal mengekstrak rootfs (tar exit=$exitCode): ${output.takeLast(500)}"
+        }
     }
 }
