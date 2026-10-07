@@ -72,7 +72,7 @@ class EngineForegroundService : Service() {
             ACTION_STOP -> {
                 Log.d(TAG, "Stopping EngineForegroundService...")
                 stopEngine()
-                stopForeground(true)
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
             }
