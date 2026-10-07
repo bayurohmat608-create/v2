@@ -1,41 +1,63 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# WhatsApp AI Team Launcher (Auto-Setup & Instant Run)
-# License: Apache 2.0
-# ==============================================================================
-set -e
+set -Eeuo pipefail
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
 PORT="${PORT:-3000}"
-export PATH="$DIR/.local/bin:$DIR/engines:/opt/ide-tools/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+HOST="${HOST:-127.0.0.1}"
+export CHAT_AI_RUNTIME_DIR="${CHAT_AI_RUNTIME_DIR:-$DIR/.runtime}"
+export PATH="$DIR/.local/bin:$DIR/node_modules/.bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-# Auto-extract engine jika belum pernah diekstrak
-if [ ! -f "$DIR/.local/bin/agy" ] && [ -f "$DIR/whatsapp-ai-engines-v1.0.0-linux-arm64.tar.xz" ]; then
-  echo -e "\033[33m[*] Pertama kali dijalankan: Mengekstrak engine AI otomatis...\033[0m"
-  mkdir -p "$DIR/.local/bin"
-  tar -xf "$DIR/whatsapp-ai-engines-v1.0.0-linux-arm64.tar.xz" -C "$DIR/.local/bin"
-  chmod +x "$DIR/.local/bin"/* 2>/dev/null || true
-  echo -e "\033[32m[✓] Engine AI siap beroperasi!\033[0m"
+if ! command -v node >/dev/null 2>&1; then
+  echo "[ERROR] Node.js tidak ditemukan. Jalankan ./install.sh terlebih dahulu." >&2
+  exit 1
 fi
 
-# Cek apakah server sudah berjalan
-if curl -s -o /dev/null -w "%{http_code}" "http://localhost:${PORT}/api/status" 2>/dev/null | grep -q "200"; then
-  echo -e "\033[32m[✓] Server backend sudah aktif di http://localhost:${PORT}\033[0m"
+if [ ! -d "$DIR/node_modules" ]; then
+  echo "[*] Dependency belum ada; menjalankan installer..."
+  "$DIR/install.sh"
+fi
+
+health_host="$HOST"
+[ "$health_host" = "0.0.0.0" ] && health_host="127.0.0.1"
+health_url="http://$health_host:$PORT/api/status"
+
+server_ready() {
+  curl -fsS "$health_url" >/dev/null 2>&1
+}
+
+if server_ready; then
+  echo "[✓] Server backend sudah aktif di http://$HOST:$PORT"
 else
-  echo -e "\033[36m[*] Memulai server backend WhatsApp AI di port ${PORT}...\033[0m"
-  node server.js > server.log 2>&1 &
-  sleep 1.5
+  echo "[*] Memulai server backend di $HOST:$PORT..."
+  : > "$DIR/server.log"
+  HOST="$HOST" PORT="$PORT" nohup node "$DIR/server.js" >>"$DIR/server.log" 2>&1 &
+  server_pid=$!
+  printf '%s\n' "$server_pid" > "$DIR/.server.pid"
+
+  ready=0
+  for _ in $(seq 1 40); do
+    if server_ready; then ready=1; break; fi
+    if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
+    sleep 0.25
+  done
+
+  if [ "$ready" -ne 1 ]; then
+    echo "[ERROR] Server gagal sehat setelah startup." >&2
+    tail -80 "$DIR/server.log" >&2 || true
+    exit 1
+  fi
+  echo "[✓] Backend sehat (pid=$server_pid)."
 fi
 
-# Jika argumen --terminal atau -t diberikan, langsung jalankan CLI TUI
-if [ "$1" = "--terminal" ] || [ "$1" = "-t" ] || [ "$1" = "terminal" ] || [ "$1" = "cli" ]; then
-  echo -e "\033[1;32m[✓] Meluncurkan WhatsApp AI Terminal TUI...\033[0m\n"
-  node cli.js
-else
-  echo -e "\n\033[1;36m================================================================="
-  echo -e "🟢 Tim AI Boss Bayu Siap Beroperasi!"
-  echo -e "   • Akses Web App di: \033[1;32mhttp://localhost:${PORT}\033[1;36m"
-  echo -e "   • Akses Terminal di: \033[1;33m./start.sh --terminal\033[1;36m atau \033[1;33mnode cli.js\033[1;36m"
-  echo -e "=================================================================\033[0m\n"
+if [ "${1:-}" = "--terminal" ] || [ "${1:-}" = "-t" ] || [ "${1:-}" = "terminal" ] || [ "${1:-}" = "cli" ]; then
+  exec node "$DIR/cli.js"
 fi
+
+printf '\n===============================================================\n'
+printf 'Tim AI Boss Bayu siap beroperasi.\n'
+printf 'Web App : http://%s:%s\n' "$HOST" "$PORT"
+printf 'Terminal: ./start.sh --terminal\n'
+printf 'Health  : http://%s:%s/api/health\n' "$health_host" "$PORT"
+printf '===============================================================\n\n'
