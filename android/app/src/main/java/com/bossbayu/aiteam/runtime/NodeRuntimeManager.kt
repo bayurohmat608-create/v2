@@ -60,6 +60,9 @@ class NodeRuntimeManager(
         syncAssets()
 
         val nodeBin = findNodeExecutable()
+            ?: throw IllegalStateException(
+                "Node.js runtime tidak tersedia di aplikasi. V2 tidak mengeksekusi binary dari sandbox aplikasi secara diam-diam; runtime Node harus diprovisikan secara resmi."
+            )
         val env = mutableMapOf(
             "PORT" to DEFAULT_PORT.toString(),
             "HOST" to "127.0.0.1",
@@ -104,8 +107,10 @@ class NodeRuntimeManager(
             attempts++
         }
 
-        Log.w(TAG, "Node.js server health check timed out, continuing anyway.")
-        DEFAULT_PORT
+        isRunning = false
+        serverProcess?.destroy()
+        serverProcess = null
+        throw IllegalStateException("Node.js server gagal health-check pada 127.0.0.1:$DEFAULT_PORT")
     }
 
     /**
@@ -134,20 +139,20 @@ class NodeRuntimeManager(
         }
     }
 
-    private fun findNodeExecutable(): String {
-        // Priority 1: bundled libnode.so / node binary in app files
-        val localNode = File(context.filesDir, "bin/node")
-        if (localNode.exists() && localNode.canExecute()) {
-            return localNode.absolutePath
-        }
+    private fun findNodeExecutable(): String? {
+        val candidates = mutableListOf(
+            File(context.filesDir, "bin/node"),
+            File(context.filesDir, "engines/node")
+        )
 
-        // Priority 2: Termux / system node
-        val systemPaths = listOf("/data/data/com.termux/files/usr/bin/node", "/system/bin/node", "node")
-        for (path in systemPaths) {
-            if (File(path).exists()) return path
-        }
+        val pathEntries = (System.getenv("PATH") ?: "")
+            .split(File.pathSeparator)
+            .filter { it.isNotBlank() }
+        candidates += pathEntries.map { File(it, "node") }
 
-        return "node"
+        return candidates
+            .firstOrNull { it.exists() && it.canExecute() }
+            ?.absolutePath
     }
 
     private fun copyAssetDirectory(assetPath: String, targetDir: File) {
