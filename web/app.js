@@ -3181,16 +3181,29 @@ async function switchWorkstation(target) {
 function openTerminalModal() {
   if (window.AndroidBridge && window.AndroidBridge.toggleTerminal) {
     window.AndroidBridge.toggleTerminal("alpine");
+    return;
   }
+
   const modal = document.getElementById("terminalModal");
-  if (modal) {
-    modal.style.display = "flex";
-    updateTerminalWorkstationHeader();
-    setTimeout(() => {
-      const input = document.getElementById("inputTerminalCmd");
-      if (input) input.focus();
-    }, 100);
+  if (!modal) return;
+
+  modal.style.display = "flex";
+  updateTerminalWorkstationHeader();
+
+  const screen = document.getElementById("terminalScreen");
+  const input = document.getElementById("inputTerminalCmd");
+  const submit = document.getElementById("btnTerminalSubmit");
+
+  if (screen) {
+    screen.textContent = "Terminal native tersedia di aplikasi Android.\nRaw shell via HTTP dinonaktifkan di v2 untuk keamanan.\n";
   }
+  if (input) {
+    input.value = "";
+    input.disabled = true;
+    input.placeholder = "Gunakan terminal native Android";
+  }
+  if (submit) submit.disabled = true;
+  document.querySelectorAll(".btn-quick-term").forEach(btn => { btn.disabled = true; });
 }
 
 function closeTerminalModal() {
@@ -3221,37 +3234,15 @@ async function executeTerminalCommand(cmd) {
   cmd = (cmd || "").trim();
   if (!cmd) return;
 
-  const screen = document.getElementById("terminalScreen");
-  const input = document.getElementById("inputTerminalCmd");
-  if (input) input.value = "";
-
-  if (screen) {
-    screen.textContent += `\n$ ${cmd}\n`;
-    screen.scrollTop = screen.scrollHeight;
+  if (window.AndroidBridge && window.AndroidBridge.toggleTerminal) {
+    window.AndroidBridge.toggleTerminal("alpine");
+    return;
   }
 
-  try {
-    const res = await fetch("/api/terminal/exec", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ command: cmd, reportError: true })
-    });
-    const data = await res.json();
-    if (screen) {
-      if (data.stdout) screen.textContent += data.stdout;
-      if (data.stderr) {
-        screen.textContent += `\n[STDERR / ERROR]\n${data.stderr}\n`;
-      }
-      if (data.exitCode !== 0) {
-        screen.textContent += `[Exit Code: ${data.exitCode}]\n`;
-      }
-      screen.scrollTop = screen.scrollHeight;
-    }
-  } catch (err) {
-    if (screen) {
-      screen.textContent += `\n[Gagal koneksi server: ${err.message}]\n`;
-      screen.scrollTop = screen.scrollHeight;
-    }
+  const screen = document.getElementById("terminalScreen");
+  if (screen) {
+    screen.textContent += "\nTerminal command execution via HTTP dinonaktifkan di v2. Gunakan terminal native Android.\n";
+    screen.scrollTop = screen.scrollHeight;
   }
 }
 
