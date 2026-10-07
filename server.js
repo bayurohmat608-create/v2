@@ -1426,7 +1426,7 @@ function executeAgyCli(model, prompt, speaker = "A", currentChatId = "group") {
       PATH: RUNTIME_PATH
     };
 
-    const args = [];
+    const args = ["--sandbox", "--mode", "accept-edits"];
     if (model) {
       args.push("--model", model);
     }
