@@ -3,6 +3,19 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
+val generatedRuntimeAssets = layout.buildDirectory.dir("generated/runtimeAssets")
+
+val syncRuntimeAssets by tasks.registering(Sync::class) {
+    val repoRoot = rootProject.projectDir.parentFile
+    into(generatedRuntimeAssets)
+
+    from(repoRoot.resolve("server.js")) { into("server") }
+    from(repoRoot.resolve("cli.js")) { into("server") }
+    from(repoRoot.resolve("package.json")) { into("server") }
+    from(repoRoot.resolve("personas")) { into("server/personas") }
+    from(repoRoot.resolve("web")) { into("web") }
+}
+
 android {
     namespace = "com.bossbayu.aiteam"
     compileSdk = 34
@@ -50,7 +63,7 @@ android {
     sourceSets {
         getByName("main") {
             assets {
-                srcDirs("src/main/assets")
+                setSrcDirs(listOf(generatedRuntimeAssets))
             }
             jniLibs {
                 srcDirs("src/main/jniLibs")
@@ -66,4 +79,9 @@ dependencies {
     implementation(libs.androidx.webkit)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
+}
+
+
+tasks.named("preBuild").configure {
+    dependsOn(syncRuntimeAssets)
 }
