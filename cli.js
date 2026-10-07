@@ -3,7 +3,9 @@ const http = require("http");
 const { spawn } = require("child_process");
 const path = require("path");
 
-const SERVER_URL = "http://localhost:3000";
+const SERVER_HOST = process.env.HOST || "127.0.0.1";
+const SERVER_PORT = process.env.PORT || 3000;
+const SERVER_URL = `http://${SERVER_HOST}:${SERVER_PORT}`;
 const SERVER_SCRIPT = path.join(__dirname, "server.js");
 
 // ANSI Colors
@@ -138,7 +140,10 @@ async function checkOrStartServer() {
       env: {
         ...process.env,
         GODEBUG: "netdns=cgo",
-        PATH: `/public/.gemini/antigravity-cli/bin:/public/.local/bin:${process.env.PATH || ""}:/usr/local/bin:/usr/bin:/bin`
+        PATH: `${path.join(__dirname, ".local", "bin")}:${path.join(__dirname, "node_modules", ".bin")}:${process.env.PATH || ""}:/usr/local/bin:/usr/bin:/bin`,
+        HOST: SERVER_HOST,
+        PORT: String(SERVER_PORT),
+        CHAT_AI_RUNTIME_DIR: process.env.CHAT_AI_RUNTIME_DIR || path.join(__dirname, ".runtime")
       }
     });
     proc.unref();
