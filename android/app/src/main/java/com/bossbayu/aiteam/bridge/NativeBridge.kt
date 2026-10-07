@@ -47,27 +47,22 @@ class NativeBridge(
     fun triggerHaptic(type: String) {
         activity.runOnUiThread {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                    val vibrator = vibratorManager?.defaultVibrator
-                    when (type.lowercase()) {
-                        "light", "click" -> vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
-                        "medium" -> vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
-                        "success" -> vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 50, 60, 80), -1))
-                        "error" -> vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 100, 80, 100), -1))
-                        else -> vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
-                    }
+                val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                    manager?.defaultVibrator
                 } else {
                     @Suppress("DEPRECATION")
-                    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-                    when (type.lowercase()) {
-                        "light", "click" -> vibrator?.vibrate(20)
-                        "medium" -> vibrator?.vibrate(50)
-                        "success" -> vibrator?.vibrate(longArrayOf(0, 40, 50, 70), -1)
-                        "error" -> vibrator?.vibrate(longArrayOf(0, 80, 60, 90), -1)
-                        else -> vibrator?.vibrate(30)
-                    }
+                    context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
                 }
+
+                val effect = when (type.lowercase()) {
+                    "light", "click" -> VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE)
+                    "medium" -> VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)
+                    "success" -> VibrationEffect.createWaveform(longArrayOf(0, 40, 50, 70), -1)
+                    "error" -> VibrationEffect.createWaveform(longArrayOf(0, 80, 60, 90), -1)
+                    else -> VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE)
+                }
+                vibrator?.vibrate(effect)
             } catch (_: Exception) {}
         }
     }
