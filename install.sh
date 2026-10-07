@@ -61,7 +61,6 @@ else
 fi
 
 chmod +x "$DIR/cli.js" "$DIR/server.js" "$DIR/start.sh" "$DIR/install.sh" 2>/dev/null || true
-chmod +x "$DIR/scripts/doctor.sh" "$DIR/scripts/smoke-test.sh" 2>/dev/null || true
 
 if [ "$engine_failures" -gt 0 ] && [ "$ALLOW_PARTIAL_ENGINES" != "1" ]; then
   die "$engine_failures engine gagal health-check. Pasang prerequisite di atas atau gunakan ALLOW_PARTIAL_ENGINES=1 untuk mode parsial."
