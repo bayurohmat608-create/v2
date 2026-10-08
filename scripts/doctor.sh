@@ -25,7 +25,6 @@ node --check cli.js >/dev/null 2>&1 && pass "cli.js syntax valid" || bad "cli.js
 [ -f web/index.html ] && pass "web/index.html ada" || bad "web/index.html hilang"
 [ -f personas/ai-1-system.md ] && pass "persona Budi ada" || bad "persona Budi hilang"
 [ -f personas/ai-2-system.md ] && pass "persona Rian ada" || bad "persona Rian hilang"
-check_cmd agy
 check_cmd opencode
 check_cmd codex
 if [ "$fail" -eq 0 ]; then
