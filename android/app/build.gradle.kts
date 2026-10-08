@@ -70,20 +70,6 @@ val androidEngineArtifacts = listOf(
         "PK2cEuioc9181iPYtwzLC4XqBjKMTjcO/5PNOvpM41mEgsyPTYfhX+IqgYcgvNEK1BPp/8oAl62xkMgBSxlupg==",
         "base64"
     ),
-    AndroidEngineArtifact(
-        "aarch64",
-        "antigravity-1.3.1.tgz",
-        "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.1-4582356770750464/linux-arm-musl/cli_linux_arm64_musl.tar.gz",
-        "894f8e980020676966f0610122a3f15207e2cd82eb73bfe856418c32623e53c7e8762df3753fab374ee95d92fb8eb42e21260e2c7793e19e7f1c55905f3f6a5c",
-        "hex"
-    ),
-    AndroidEngineArtifact(
-        "x86_64",
-        "antigravity-1.3.1.tgz",
-        "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.1-4582356770750464/linux-x64-musl/cli_linux_x64_musl.tar.gz",
-        "027b7169b29d9d1aa80bd28d8d2defa9ef50353bcc194c5e46d1315fafe29cf74624e8e24e8ad0d7eaa3e2651f5c70ae8f40d14a0a04db68f027feac1edcce1d",
-        "hex"
-    )
 )
 
 fun sha256(file: File): String {
