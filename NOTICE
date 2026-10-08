@@ -50,9 +50,12 @@ THIRD-PARTY COMPONENTS AND PROVENANCE
    - Version: 2.5.0
    - Source archive SHA-256:
      912afa237510ae542a7733998eb18a12bcda35ab6729c8e2ddb43e8d0ebab007
-   - Termux package metadata identifies its packaged talloc component as
-     GPL-3.0.
-   - It is packaged as a private shared library for the Android PRoot runtime.
+   - The upstream talloc library source identifies the library as
+     LGPL-3.0-or-later. Termux package metadata may use a coarser package-level
+     license label; the bundled private shared library remains governed by its
+     upstream library license.
+   - It is dynamically linked as a private shared library by the Android
+     PRoot runtime.
 
 7. libandroid-shmem
    - Version: 0.7
