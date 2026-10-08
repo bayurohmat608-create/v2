@@ -126,9 +126,16 @@ class WorkstationManager(private val context: Context) {
     }
 
     /**
-     * Installs/verifies Alpine + bundled engine payloads.
+     * Installs/verifies Alpine and creates persistent workspace directories.
+     * All workstation mutations are serialized across Android processes.
      */
     fun ensureWorkstationsReady() {
+        withRuntimeMutationLock {
+            ensureWorkstationsReadyUnlocked()
+        }
+    }
+
+    private fun ensureWorkstationsReadyUnlocked() {
         if (!isAlpineInstalled()) {
             Log.i(TAG, "Installing verified Alpine $ALPINE_VERSION rootfs...")
             extractAlpineFromAssets()
@@ -145,16 +152,18 @@ class WorkstationManager(private val context: Context) {
 
     fun ensureEnginePackReady(
         onProgress: (String) -> Unit = {}
-    ): Boolean {
-        ensureWorkstationsReady()
-        if (isEnginePackInstalled()) return true
-
-        return try {
-            installEnginePackFromNetwork(alpineDir, alpineArch(), onProgress)
-            isEnginePackInstalled()
-        } catch (e: Exception) {
-            Log.e(TAG, "Engine provisioning failed: ${e.message}", e)
-            false
+    ): Boolean = withRuntimeMutationLock {
+        ensureWorkstationsReadyUnlocked()
+        if (isEnginePackInstalled()) {
+            true
+        } else {
+            try {
+                installEnginePackFromNetwork(alpineDir, alpineArch(), onProgress)
+                isEnginePackInstalled()
+            } catch (e: Exception) {
+                Log.e(TAG, "Engine provisioning failed: ${e.message}", e)
+                false
+            }
         }
     }
 
@@ -162,11 +171,11 @@ class WorkstationManager(private val context: Context) {
      * Installs small Alpine-native runtime dependencies needed by OpenCode and
      * by Codex search/shell helpers. Failure is recoverable and may be retried.
      */
-    fun provisionEngineDependencies(prootManager: PRootManager): Boolean {
-        ensureWorkstationsReady()
+    fun provisionEngineDependencies(prootManager: PRootManager): Boolean = withRuntimeMutationLock {
+        ensureWorkstationsReadyUnlocked()
 
         val marker = File(alpineDir, "opt/aiteam/$DEPS_MARKER")
-        if (marker.isFile) return true
+        if (marker.isFile) return@withRuntimeMutationLock true
 
         configureGuestDns(alpineDir)
 
@@ -195,12 +204,23 @@ class WorkstationManager(private val context: Context) {
 
         if (!result.isSuccess) {
             Log.w(TAG, "Alpine dependency provisioning failed: ${result.stderr.takeLast(1000)}")
-            return false
+            return@withRuntimeMutationLock false
         }
 
         marker.parentFile?.mkdirs()
         marker.writeText("ok\n")
-        return true
+        true
+    }
+
+    private fun <T> withRuntimeMutationLock(block: () -> T): T {
+        val lockFile = File(workstationsBaseDir, ".runtime-mutation.lock")
+        lockFile.parentFile?.mkdirs()
+
+        FileOutputStream(lockFile, true).channel.use { channel ->
+            channel.lock().use {
+                return block()
+            }
+        }
     }
 
     private fun extractAlpineFromAssets() {
@@ -412,18 +432,9 @@ class WorkstationManager(private val context: Context) {
         val partial = File(cacheDir, artifact.filename + ".part")
         partial.delete()
 
-        val url = URL(artifact.url)
-        require(url.protocol == "https") {
-            "Engine URL wajib HTTPS: ${artifact.url}"
-        }
-
         onProgress("Mengunduh ${artifact.label}...")
 
-        val connection = url.openConnection() as HttpURLConnection
-        connection.instanceFollowRedirects = true
-        connection.connectTimeout = 20_000
-        connection.readTimeout = 60_000
-        connection.useCaches = false
+        val connection = openHttpsConnection(artifact.url)
 
         try {
             val code = connection.responseCode
@@ -474,6 +485,46 @@ class WorkstationManager(private val context: Context) {
             connection.disconnect()
             if (!destination.exists()) partial.delete()
         }
+    }
+
+    private fun openHttpsConnection(rawUrl: String): HttpURLConnection {
+        var current = URL(rawUrl)
+
+        repeat(6) { hop ->
+            require(current.protocol.equals("https", ignoreCase = true)) {
+                "Engine URL/redirect wajib HTTPS: $current"
+            }
+
+            val connection = current.openConnection() as HttpURLConnection
+            connection.instanceFollowRedirects = false
+            connection.connectTimeout = 20_000
+            connection.readTimeout = 60_000
+            connection.useCaches = false
+
+            val code = connection.responseCode
+            if (code !in setOf(301, 302, 303, 307, 308)) {
+                return connection
+            }
+
+            val location = connection.getHeaderField("Location")
+                ?: run {
+                    connection.disconnect()
+                    error("Redirect engine tanpa Location header.")
+                }
+            val next = URL(current, location)
+            connection.disconnect()
+
+            require(next.protocol.equals("https", ignoreCase = true)) {
+                "Redirect engine ke non-HTTPS ditolak: $next"
+            }
+            current = next
+
+            if (hop == 5) {
+                error("Terlalu banyak redirect saat mengunduh engine.")
+            }
+        }
+
+        error("Gagal membuka koneksi HTTPS engine.")
     }
 
     private fun verifySha512(file: File, artifact: EngineArtifact): Boolean {
