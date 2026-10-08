@@ -1,3 +1,7 @@
+import java.io.File
+import java.net.URI
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -10,7 +14,7 @@ val nodeMobileRoot = layout.buildDirectory.dir("node-mobile")
 val nodeMobileZip = layout.buildDirectory.file("downloads/nodejs-mobile-android-$nodeMobileVersion.zip")
 
 fun sha256(file: File): String {
-    val digest = java.security.MessageDigest.getInstance("SHA-256")
+    val digest = MessageDigest.getInstance("SHA-256")
     file.inputStream().use { input ->
         val buffer = ByteArray(1024 * 1024)
         while (true) {
@@ -32,7 +36,7 @@ val prepareNodeMobile by tasks.registering {
 
         if (!zipFile.exists() || sha256(zipFile) != nodeMobileSha256) {
             zipFile.delete()
-            java.net.URI(nodeMobileUrl).toURL().openStream().use { input ->
+            URI(nodeMobileUrl).toURL().openStream().use { input ->
                 zipFile.outputStream().use { output -> input.copyTo(output) }
             }
         }
