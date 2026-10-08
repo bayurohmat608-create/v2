@@ -3395,62 +3395,17 @@ function renderAuthVaultUI() {
 
 let activeCodexLoginSession = null;
 let codexPollTimer = null;
-let activeGoogleLoginSession = null;
-let googlePollTimer = null;
 
 function setupAuthVaultListeners() {
-  const tabAgy = document.getElementById("tabVaultAgy");
   const tabCodex = document.getElementById("tabVaultCodex");
-  // Antigravity integration is intentionally hidden because current Google
-  // Terms prohibit accessing the service through third-party products.
-  if (tabAgy) tabAgy.style.display = "none";
-  if (tabCodex) {
-    tabCodex.classList.add("active");
-    appState.currentVaultTab = "codex";
-  }
-  if (tabAgy && tabCodex) {
-    tabAgy.addEventListener("click", () => {
-      appState.currentVaultTab = "antigravity";
-      tabAgy.classList.add("active");
-      tabCodex.classList.remove("active");
-      renderAuthVaultUI();
-    });
-    tabCodex.addEventListener("click", () => {
-      appState.currentVaultTab = "codex";
-      tabCodex.classList.add("active");
-      tabAgy.classList.remove("active");
-      renderAuthVaultUI();
-    });
-  }
-
   const btnOpenModal = document.getElementById("btnOpenAddProfileModal");
   const addModal = document.getElementById("addProfileModal");
   const btnCloseModal = document.getElementById("btnCloseAddProfile");
   const btnCancelModal = document.getElementById("btnCancelAddProfile");
-
-  // Selection choices
-  const choiceAgy = document.getElementById("choiceAgy");
   const choiceCodex = document.getElementById("choiceCodex");
-  const sectionGoogle = document.getElementById("sectionGoogleAuth");
   const sectionCodex = document.getElementById("sectionCodexAuth");
   const inputAlias = document.getElementById("inputNewProfileAlias");
-  if (choiceAgy) choiceAgy.style.display = "none";
-  if (sectionGoogle) sectionGoogle.style.display = "none";
-  if (choiceCodex) choiceCodex.classList.add("selected");
 
-  // Google Elements
-  const btnStartGoogle = document.getElementById("btnStartGoogleLogin");
-  const googleIdle = document.getElementById("googleIdleState");
-  const googleActive = document.getElementById("googleActiveState");
-  const btnReopenGoogle = document.getElementById("btnReopenGooglePopup");
-  const btnCancelGoogle = document.getElementById("btnCancelGoogleLogin");
-  const toggleGoogleFallback = document.getElementById("toggleGoogleFallback");
-  const bodyGoogleFallback = document.getElementById("bodyGoogleFallback");
-  const chevronGoogleFallback = document.getElementById("chevronGoogleFallback");
-  const inputGoogleManualCode = document.getElementById("inputGoogleManualCode");
-  const btnSubmitGoogleManualCode = document.getElementById("btnSubmitGoogleManualCode");
-
-  // Codex Elements
   const btnStartCodex = document.getElementById("btnStartCodexLogin");
   const codexIdle = document.getElementById("codexIdleState");
   const codexActive = document.getElementById("codexActiveState");
@@ -3459,249 +3414,92 @@ function setupAuthVaultListeners() {
   const copyCodexCodeLabel = document.getElementById("copyCodexCodeLabel");
   const btnOpenCodexUrl = document.getElementById("btnOpenCodexAuthUrl");
   const btnCancelCodex = document.getElementById("btnCancelCodexLogin");
-
-  // Success Box
   const loginSuccessBox = document.getElementById("loginSuccessBox");
   const loginSuccessSubtitle = document.getElementById("loginSuccessSubtitle");
 
-  let selectedEngine = "codex";
-  let googleAuthWindow = null;
+  appState.currentVaultTab = "codex";
+  tabCodex?.classList.add("active");
+  choiceCodex?.classList.add("selected");
+  if (sectionCodex) sectionCodex.style.display = "block";
 
-  function setEngineSelection(engine) {
-    selectedEngine = engine;
-    if (engine === "antigravity") {
-      choiceAgy?.classList.add("selected");
-      choiceCodex?.classList.remove("selected");
-      if (sectionGoogle) sectionGoogle.style.display = "block";
-      if (sectionCodex) sectionCodex.style.display = "none";
-    } else {
-      choiceCodex?.classList.add("selected");
-      choiceAgy?.classList.remove("selected");
-      if (sectionCodex) sectionCodex.style.display = "block";
-      if (sectionGoogle) sectionGoogle.style.display = "none";
-    }
-  }
+  const setStartButtonIdle = () => {
+    if (!btnStartCodex) return;
+    btnStartCodex.disabled = false;
+    btnStartCodex.textContent = "Mulai Login OpenAI (Device Auth)";
+  };
 
-  choiceAgy?.addEventListener("click", () => setEngineSelection("antigravity"));
-  choiceCodex?.addEventListener("click", () => setEngineSelection("codex"));
-
-  // Open modal
-  btnOpenModal?.addEventListener("click", () => {
+  const resetLoginUi = () => {
     if (loginSuccessBox) loginSuccessBox.style.display = "none";
-    if (googleIdle) googleIdle.style.display = "block";
-    if (googleActive) googleActive.style.display = "none";
     if (codexIdle) codexIdle.style.display = "block";
     if (codexActive) codexActive.style.display = "none";
+    if (codexCodeDisplay) codexCodeDisplay.textContent = "MEMUAT...";
+    if (copyCodexCodeLabel) copyCodexCodeLabel.textContent = "Salin Kode";
     if (inputAlias) inputAlias.value = "";
-    if (inputGoogleManualCode) inputGoogleManualCode.value = "";
-    if (bodyGoogleFallback) bodyGoogleFallback.style.display = "none";
+    setStartButtonIdle();
+  };
 
-    const defaultTab = appState.currentVaultTab || "codex";
-    setEngineSelection(defaultTab);
-
-    if (addModal) addModal.style.display = "flex";
-  });
-
-  const stopAllLogins = () => {
-    if (codexPollTimer) { clearInterval(codexPollTimer); codexPollTimer = null; }
-    if (googlePollTimer) { clearInterval(googlePollTimer); googlePollTimer = null; }
-
-    if (activeCodexLoginSession) {
-      fetch("/api/auth/codex/cancel-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ loginId: activeCodexLoginSession })
-      }).catch(() => {});
-      activeCodexLoginSession = null;
+  const clearPoll = () => {
+    if (codexPollTimer) {
+      clearInterval(codexPollTimer);
+      codexPollTimer = null;
     }
-    activeGoogleLoginSession = null;
-    if (googleAuthWindow && !googleAuthWindow.closed) {
-      try { googleAuthWindow.close(); } catch {}
-    }
-    googleAuthWindow = null;
+  };
+
+  const cancelActiveLogin = () => {
+    clearPoll();
+    const loginId = activeCodexLoginSession;
+    activeCodexLoginSession = null;
+    if (!loginId) return;
+
+    fetch("/api/auth/codex/cancel-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ loginId })
+    }).catch(() => {});
   };
 
   const closeModal = () => {
-    stopAllLogins();
+    cancelActiveLogin();
     if (addModal) addModal.style.display = "none";
   };
 
-  btnCloseModal?.addEventListener("click", closeModal);
-  btnCancelModal?.addEventListener("click", closeModal);
-  addModal?.addEventListener("click", (e) => {
-    if (e.target === addModal) {
-      closeModal();
-    }
-  });
+  const handleLoginSuccess = (profile) => {
+    clearPoll();
+    activeCodexLoginSession = null;
 
-  function handleLoginSuccess(profile, engine) {
-    stopAllLogins();
-    if (sectionGoogle) sectionGoogle.style.display = "none";
-    if (sectionCodex) sectionCodex.style.display = "none";
+    if (codexIdle) codexIdle.style.display = "none";
+    if (codexActive) codexActive.style.display = "none";
     if (loginSuccessBox) {
       loginSuccessBox.style.display = "block";
       if (loginSuccessSubtitle) {
-        loginSuccessSubtitle.textContent = `Akun "${profile.alias || profile.email}" berhasil terhubung dan langsung aktif!`;
+        loginSuccessSubtitle.textContent =
+          `Akun "${profile.alias || profile.email || "OpenAI"}" berhasil terhubung dan aktif.`;
       }
     }
-    playSentSound();
-    showToast(`✅ Berhasil terhubung ke: ${profile.alias || profile.email}`);
 
-    appState.currentVaultTab = engine;
-    if (tabAgy && tabCodex) {
-      if (engine === "antigravity") {
-        tabAgy.classList.add("active");
-        tabCodex.classList.remove("active");
-      } else {
-        tabCodex.classList.add("active");
-        tabAgy.classList.remove("active");
-      }
-    }
-    renderAuthVaultUI();
+    playSentSound();
+    showToast(`✅ OpenAI terhubung: ${profile.alias || profile.email || "Codex"}`);
+    appState.currentVaultTab = "codex";
+    loadAuthVault();
 
     setTimeout(() => {
-      closeModal();
-    }, 1800);
-  }
+      if (addModal) addModal.style.display = "none";
+      resetLoginUi();
+    }, 1400);
+  };
 
-  // --- GOOGLE AUTH HANDLERS ---
-  btnStartGoogle?.addEventListener("click", () => {
-    const alias = (inputAlias ? inputAlias.value : "").trim();
-    btnStartGoogle.disabled = true;
-
-    fetch("/api/auth/google/start-login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ alias })
-    })
-      .then(r => r.json())
-      .then(data => {
-        btnStartGoogle.disabled = false;
-        if (!data.success) {
-          showToast("Gagal memulai Google login: " + (data.error || ""));
-          return;
-        }
-
-        activeGoogleLoginSession = data.stateId;
-        if (googleIdle) googleIdle.style.display = "none";
-        if (googleActive) googleActive.style.display = "block";
-
-        const width = 560;
-        const height = 680;
-        const left = Math.max(0, (window.screen.width - width) / 2);
-        const top = Math.max(0, (window.screen.height - height) / 2);
-        googleAuthWindow = window.open(
-          data.authUrl,
-          "googleLoginWin",
-          `width=${width},height=${height},top=${top},left=${left},status=no,toolbar=no,menubar=no`
-        );
-
-        if (googlePollTimer) clearInterval(googlePollTimer);
-        googlePollTimer = setInterval(() => {
-          if (!activeGoogleLoginSession) return;
-          fetch(`/api/auth/google/check-login?stateId=${encodeURIComponent(activeGoogleLoginSession)}`)
-            .then(r => r.json())
-            .then(res => {
-              if (res.status === "success" && res.profile) {
-                handleLoginSuccess(res.profile, "antigravity");
-              } else if (res.status === "failed") {
-                showToast("Login Google gagal: " + (res.error || ""));
-                stopAllLogins();
-                if (googleIdle) googleIdle.style.display = "block";
-                if (googleActive) googleActive.style.display = "none";
-              }
-            })
-            .catch(() => {});
-        }, 2000);
-      })
-      .catch(() => {
-        btnStartGoogle.disabled = false;
-        showToast("Kesalahan koneksi saat memulai login Google");
-      });
+  btnOpenModal?.addEventListener("click", () => {
+    resetLoginUi();
+    if (addModal) addModal.style.display = "flex";
+  });
+  btnCloseModal?.addEventListener("click", closeModal);
+  btnCancelModal?.addEventListener("click", closeModal);
+  addModal?.addEventListener("click", (event) => {
+    if (event.target === addModal) closeModal();
   });
 
-  btnReopenGoogle?.addEventListener("click", () => {
-    if (!activeGoogleLoginSession) return;
-    const alias = (inputAlias ? inputAlias.value : "").trim();
-    fetch("/api/auth/google/start-login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ alias })
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success && data.authUrl) {
-          window.open(data.authUrl, "_blank");
-        }
-      });
-  });
-
-  btnCancelGoogle?.addEventListener("click", () => {
-    stopAllLogins();
-    if (googleIdle) googleIdle.style.display = "block";
-    if (googleActive) googleActive.style.display = "none";
-  });
-
-  toggleGoogleFallback?.addEventListener("click", () => {
-    if (!bodyGoogleFallback) return;
-    const isHidden = bodyGoogleFallback.style.display === "none";
-    bodyGoogleFallback.style.display = isHidden ? "block" : "none";
-    if (chevronGoogleFallback) {
-      chevronGoogleFallback.textContent = isHidden ? "▲" : "▼";
-    }
-  });
-
-  btnSubmitGoogleManualCode?.addEventListener("click", () => {
-    const rawVal = (inputGoogleManualCode ? inputGoogleManualCode.value : "").trim();
-    if (!rawVal) {
-      showToast("Silakan masukkan URL callback atau kode otorisasi");
-      return;
-    }
-    btnSubmitGoogleManualCode.disabled = true;
-    btnSubmitGoogleManualCode.textContent = "Memverifikasi...";
-
-    fetch("/api/auth/google/exchange-code", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code: rawVal,
-        stateId: activeGoogleLoginSession
-      })
-    })
-      .then(r => r.json())
-      .then(res => {
-        btnSubmitGoogleManualCode.disabled = false;
-        btnSubmitGoogleManualCode.textContent = "Verifikasi Kode";
-        if (res.success && res.profile) {
-          handleLoginSuccess(res.profile, "antigravity");
-        } else {
-          showToast("Gagal verifikasi kode: " + (res.error || ""));
-        }
-      })
-      .catch(() => {
-        btnSubmitGoogleManualCode.disabled = false;
-        btnSubmitGoogleManualCode.textContent = "Verifikasi Kode";
-        showToast("Terjadi kesalahan saat memverifikasi kode");
-      });
-  });
-
-  window.addEventListener("message", (event) => {
-    if (event.data && event.data.type === "google_login_success") {
-      if (activeGoogleLoginSession) {
-        fetch(`/api/auth/google/check-login?stateId=${encodeURIComponent(activeGoogleLoginSession)}`)
-          .then(r => r.json())
-          .then(res => {
-            if (res.status === "success" && res.profile) {
-              handleLoginSuccess(res.profile, "antigravity");
-            }
-          });
-      }
-    }
-  });
-
-  // --- CODEX AUTH HANDLERS ---
   btnStartCodex?.addEventListener("click", () => {
-    const alias = (inputAlias ? inputAlias.value : "").trim();
+    const alias = (inputAlias?.value || "").trim();
     btnStartCodex.disabled = true;
     btnStartCodex.textContent = "Meminta kode otorisasi...";
 
@@ -3710,73 +3508,66 @@ function setupAuthVaultListeners() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ alias })
     })
-      .then(r => r.json())
-      .then(data => {
-        btnStartCodex.disabled = false;
-        btnStartCodex.innerHTML = `
-          <svg viewBox="0 0 24 24" width="20" height="20">
-            <path fill="#fff" d="M20.5 10.5c-.3-1.3-1-2.4-2-3.2.1-.8 0-1.6-.3-2.3-.5-1.2-1.5-2.1-2.7-2.5-1-.3-2.1-.2-3.1.3-.8-.7-1.9-1.1-3-1.1-1.6 0-3.1.8-4 2.1-.9.1-1.7.5-2.4 1.1-.9.9-1.4 2.1-1.4 3.4 0 .4.1.8.2 1.2-1 .7-1.7 1.8-1.9 3-.3 1.3 0 2.6.7 3.7.1.8.5 1.5 1 2.2.9 1.1 2.2 1.8 3.6 2 .4.8 1.1 1.5 1.9 1.9 1.2.6 2.6.7 3.9.2.7.7 1.7 1.1 2.7 1.1 1.6 0 3.1-.8 4-2.1.8-.1 1.6-.5 2.3-1.1.9-.9 1.4-2.1 1.4-3.4 0-.4-.1-.8-.2-1.2 1-.7 1.7-1.8 1.9-3 .3-1.4 0-2.7-.8-3.7z"/>
-          </svg>
-          <span>Mulai Login OpenAI (Device Auth)</span>
-        `;
-        if (!data.success) {
-          showToast("Gagal memulai Codex login: " + (data.error || ""));
-          return;
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || `HTTP ${response.status}`);
         }
-
+        return data;
+      })
+      .then((data) => {
         activeCodexLoginSession = data.loginId;
         if (codexCodeDisplay) codexCodeDisplay.textContent = data.deviceCode || "----";
         if (btnOpenCodexUrl && data.authUrl) btnOpenCodexUrl.href = data.authUrl;
-
         if (codexIdle) codexIdle.style.display = "none";
         if (codexActive) codexActive.style.display = "block";
+        setStartButtonIdle();
 
         if (data.deviceCode && navigator.clipboard) {
           navigator.clipboard.writeText(data.deviceCode).catch(() => {});
         }
 
-        if (codexPollTimer) clearInterval(codexPollTimer);
+        clearPoll();
         codexPollTimer = setInterval(() => {
           if (!activeCodexLoginSession) return;
           fetch(`/api/auth/codex/check-login?loginId=${encodeURIComponent(activeCodexLoginSession)}`)
             .then(r => r.json())
             .then(res => {
               if (res.status === "success" && res.profile) {
-                handleLoginSuccess(res.profile, "codex");
-              } else if (res.status === "failed") {
-                showToast("Login OpenAI dibatalkan atau gagal: " + (res.error || ""));
-                stopAllLogins();
-                if (codexIdle) codexIdle.style.display = "block";
-                if (codexActive) codexActive.style.display = "none";
+                handleLoginSuccess(res.profile);
+              } else if (res.status === "failed" || res.status === "expired") {
+                const message = res.error || "Sesi login OpenAI berakhir.";
+                cancelActiveLogin();
+                resetLoginUi();
+                showToast(message);
               }
             })
             .catch(() => {});
         }, 2000);
       })
-      .catch(() => {
-        btnStartCodex.disabled = false;
-        btnStartCodex.textContent = "Mulai Login OpenAI (Device Auth)";
-        showToast("Terjadi kesalahan saat memulai sesi OpenAI login");
+      .catch((error) => {
+        setStartButtonIdle();
+        showToast("Gagal memulai login OpenAI: " + error.message);
       });
   });
 
   btnCopyCodexCode?.addEventListener("click", () => {
-    const code = codexCodeDisplay ? codexCodeDisplay.textContent.trim() : "";
-    if (code && code !== "MEMUAT..." && code !== "----") {
-      navigator.clipboard.writeText(code).then(() => {
+    const code = codexCodeDisplay?.textContent?.trim() || "";
+    if (!code || code === "MEMUAT..." || code === "----") return;
+
+    navigator.clipboard?.writeText(code)
+      .then(() => {
         if (copyCodexCodeLabel) copyCodexCodeLabel.textContent = "Tersalin! ✓";
-        showToast("Kode otorisasi tersalin ke papan klip: " + code);
+        showToast("Kode otorisasi OpenAI tersalin.");
         setTimeout(() => {
           if (copyCodexCodeLabel) copyCodexCodeLabel.textContent = "Salin Kode";
-        }, 2000);
-      });
-    }
+        }, 1600);
+      })
+      .catch(() => showToast("Tidak dapat menyalin kode otomatis."));
   });
 
   btnCancelCodex?.addEventListener("click", () => {
-    stopAllLogins();
-    if (codexIdle) codexIdle.style.display = "block";
-    if (codexActive) codexActive.style.display = "none";
+    cancelActiveLogin();
+    resetLoginUi();
   });
 }
-
