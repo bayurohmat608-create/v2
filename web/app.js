@@ -29,10 +29,10 @@ const appState = {
   isRunning: false,
   wakelock: false,
   authVault: {
-    active: { antigravity: "", codex: "" },
+    active: { codex: "" },
     profiles: []
   },
-  currentVaultTab: "antigravity",
+  currentVaultTab: "codex",
   filter: "all",
   attachedFile: null,
   replyingTo: null, // { id, senderName, text }
@@ -3409,6 +3409,13 @@ let googlePollTimer = null;
 function setupAuthVaultListeners() {
   const tabAgy = document.getElementById("tabVaultAgy");
   const tabCodex = document.getElementById("tabVaultCodex");
+  // Antigravity integration is intentionally hidden because current Google
+  // Terms prohibit accessing the service through third-party products.
+  if (tabAgy) tabAgy.style.display = "none";
+  if (tabCodex) {
+    tabCodex.classList.add("active");
+    appState.currentVaultTab = "codex";
+  }
   if (tabAgy && tabCodex) {
     tabAgy.addEventListener("click", () => {
       appState.currentVaultTab = "antigravity";
@@ -3435,6 +3442,9 @@ function setupAuthVaultListeners() {
   const sectionGoogle = document.getElementById("sectionGoogleAuth");
   const sectionCodex = document.getElementById("sectionCodexAuth");
   const inputAlias = document.getElementById("inputNewProfileAlias");
+  if (choiceAgy) choiceAgy.style.display = "none";
+  if (sectionGoogle) sectionGoogle.style.display = "none";
+  if (choiceCodex) choiceCodex.classList.add("selected");
 
   // Google Elements
   const btnStartGoogle = document.getElementById("btnStartGoogleLogin");
@@ -3462,7 +3472,7 @@ function setupAuthVaultListeners() {
   const loginSuccessBox = document.getElementById("loginSuccessBox");
   const loginSuccessSubtitle = document.getElementById("loginSuccessSubtitle");
 
-  let selectedEngine = "antigravity";
+  let selectedEngine = "codex";
   let googleAuthWindow = null;
 
   function setEngineSelection(engine) {
@@ -3494,7 +3504,7 @@ function setupAuthVaultListeners() {
     if (inputGoogleManualCode) inputGoogleManualCode.value = "";
     if (bodyGoogleFallback) bodyGoogleFallback.style.display = "none";
 
-    const defaultTab = appState.currentVaultTab || "antigravity";
+    const defaultTab = appState.currentVaultTab || "codex";
     setEngineSelection(defaultTab);
 
     if (addModal) addModal.style.display = "flex";
