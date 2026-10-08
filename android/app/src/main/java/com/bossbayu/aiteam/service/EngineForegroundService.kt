@@ -105,18 +105,33 @@ class EngineForegroundService : Service() {
 
         serviceScope.launch {
             try {
-                updateNotification("Menyiapkan Alpine + engine pack...")
+                updateNotification("Menyiapkan Alpine Linux...")
                 workstationManager.ensureWorkstationsReady()
 
-                updateNotification("Menyiapkan dependency engine Linux...")
-                val depsReady = workstationManager.provisionEngineDependencies(prootManager)
-                if (!depsReady) {
-                    Log.w(TAG, "Engine dependencies are incomplete; backend will expose degraded health.")
+                val enginesReady = workstationManager.ensureEnginePackReady { status ->
+                    updateNotification(status)
+                }
+
+                val depsReady = if (enginesReady) {
+                    updateNotification("Menyiapkan dependency engine Linux...")
+                    workstationManager.provisionEngineDependencies(prootManager)
+                } else {
+                    false
+                }
+
+                if (!enginesReady) {
+                    Log.w(TAG, "Engine pack belum siap; backend tetap start dalam mode degraded.")
+                } else if (!depsReady) {
+                    Log.w(TAG, "Engine dependencies belum lengkap; backend expose degraded health.")
                 }
 
                 updateNotification("Memulai embedded Node.js...")
                 val port = nodeRuntimeManager.startServer()
-                val suffix = if (depsReady) "" else " · engine deps perlu retry"
+                val suffix = when {
+                    !enginesReady -> " · engine perlu diunduh ulang"
+                    !depsReady -> " · dependency engine perlu retry"
+                    else -> ""
+                }
                 updateNotification("Server lokal aktif di 127.0.0.1:$port$suffix")
             } catch (e: Exception) {
                 Log.e(TAG, "Engine start failed: ${e.message}", e)
