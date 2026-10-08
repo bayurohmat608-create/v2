@@ -169,6 +169,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
+      - name: Checkout smoke test script
+        uses: actions/checkout@v4
+
       - name: Setup JDK 17
         uses: actions/setup-java@v5
         with:
