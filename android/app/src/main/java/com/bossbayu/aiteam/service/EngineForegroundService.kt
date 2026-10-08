@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import com.bossbayu.aiteam.MainActivity
 import com.bossbayu.aiteam.R
 import com.bossbayu.aiteam.runtime.NodeRuntimeManager
+import com.bossbayu.aiteam.runtime.PRootManager
 import com.bossbayu.aiteam.runtime.WorkstationManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +34,7 @@ class EngineForegroundService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
     private lateinit var wakeLockManager: WakeLockManager
     private lateinit var nodeRuntimeManager: NodeRuntimeManager
+    private lateinit var prootManager: PRootManager
     private lateinit var workstationManager: WorkstationManager
 
     companion object {
@@ -66,6 +68,7 @@ class EngineForegroundService : Service() {
         super.onCreate()
         wakeLockManager = WakeLockManager(this)
         workstationManager = WorkstationManager(this)
+        prootManager = PRootManager(this)
         nodeRuntimeManager = NodeRuntimeManager(this, workstationManager)
         createNotificationChannel()
     }
@@ -107,14 +110,19 @@ class EngineForegroundService : Service() {
 
         serviceScope.launch {
             try {
-                // Workspaces themselves are plain app-private directories.
-                // Linux workstation provisioning is independent and checked
-                // only when the user opens the native terminal.
-                workstationManager.budiWorkspace
-                workstationManager.rianWorkspace
+                updateNotification("Menyiapkan Alpine + engine pack...")
+                workstationManager.ensureWorkstationsReady()
 
+                updateNotification("Menyiapkan dependency engine Linux...")
+                val depsReady = workstationManager.provisionEngineDependencies(prootManager)
+                if (!depsReady) {
+                    Log.w(TAG, "Engine dependencies are incomplete; backend will expose degraded health.")
+                }
+
+                updateNotification("Memulai embedded Node.js...")
                 val port = nodeRuntimeManager.startServer()
-                updateNotification("Server lokal aktif di 127.0.0.1:$port")
+                val suffix = if (depsReady) "" else " · engine deps perlu retry"
+                updateNotification("Server lokal aktif di 127.0.0.1:$port$suffix")
             } catch (e: Exception) {
                 Log.e(TAG, "Engine start failed: ${e.message}", e)
                 updateNotification("Runtime error: ${e.message ?: "unknown"}")
