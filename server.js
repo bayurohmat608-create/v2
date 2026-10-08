@@ -20,6 +20,165 @@ const RUNTIME_PATH = [
   "/bin",
   process.env.PATH || ""
 ].filter(Boolean).join(path.delimiter);
+
+const IS_ANDROID_RUNTIME = ["1", "true", "yes"].includes(
+  String(process.env.ANDROID_RUNTIME || "").toLowerCase()
+);
+const ANDROID_ROOTFS_DIR = process.env.ANDROID_ROOTFS_DIR || "";
+const ANDROID_PROOT_BIN = process.env.ANDROID_PROOT_BIN || "";
+const ANDROID_PROOT_LOADER = process.env.ANDROID_PROOT_LOADER || "";
+const ANDROID_NATIVE_LIB_DIR = process.env.ANDROID_NATIVE_LIB_DIR || "";
+const ANDROID_GUEST_RUNTIME_DIR = process.env.ANDROID_GUEST_RUNTIME_DIR || "/opt/aiteam/runtime";
+const ANDROID_GUEST_ENGINE_BIN_DIR = process.env.ANDROID_GUEST_ENGINE_BIN_DIR || "/opt/aiteam/bin";
+const ANDROID_GUEST_HOME_DIR = process.env.ANDROID_GUEST_HOME_DIR || "/opt/aiteam/runtime/home";
+
+function isPathWithin(candidate, base) {
+  if (!candidate || !base) return false;
+  const resolvedCandidate = path.resolve(candidate);
+  const resolvedBase = path.resolve(base);
+  return resolvedCandidate === resolvedBase ||
+    resolvedCandidate.startsWith(resolvedBase + path.sep);
+}
+
+function toAndroidGuestPath(hostPath) {
+  if (!IS_ANDROID_RUNTIME || !hostPath) return hostPath;
+
+  const resolved = path.resolve(hostPath);
+  const map = [
+    [BUDI_WORKSPACE, "/opt/workspaces/budi"],
+    [RIAN_WORKSPACE, "/opt/workspaces/rian"],
+    [RUNTIME_DIR, ANDROID_GUEST_RUNTIME_DIR]
+  ];
+
+  for (const [hostBase, guestBase] of map) {
+    if (isPathWithin(resolved, hostBase)) {
+      const rel = path.relative(path.resolve(hostBase), resolved);
+      return rel ? path.posix.join(guestBase, ...rel.split(path.sep)) : guestBase;
+    }
+  }
+
+  return resolved;
+}
+
+function getAndroidGuestEnginePath(command) {
+  const names = {
+    agy: "agy",
+    antigravity: "agy",
+    opencode: "opencode",
+    codex: "codex"
+  };
+  const name = names[command];
+  if (!name) throw new Error(`Engine Android tidak dikenali: ${command}`);
+  return path.posix.join(ANDROID_GUEST_ENGINE_BIN_DIR, name);
+}
+
+function buildEngineLaunch(command, args = [], options = {}) {
+  const env = options.env || process.env;
+  const cwd = options.cwd || BUDI_WORKSPACE;
+
+  if (!IS_ANDROID_RUNTIME) {
+    return {
+      command,
+      args,
+      cwd,
+      env
+    };
+  }
+
+  if (!ANDROID_ROOTFS_DIR || !ANDROID_PROOT_BIN || !ANDROID_PROOT_LOADER) {
+    throw new Error("Android Linux runtime belum diprovisikan lengkap.");
+  }
+
+  const userName = String(env.USER || "aiteam").replace(/[^a-zA-Z0-9_-]/g, "") || "aiteam";
+  const hostGuestHome = path.join(RUNTIME_DIR, "home", userName);
+  try { fs.mkdirSync(hostGuestHome, { recursive: true }); } catch {}
+
+  const guestCwd = toAndroidGuestPath(cwd);
+  const guestHome = path.posix.join(ANDROID_GUEST_HOME_DIR, userName);
+  const guestWorkspace = toAndroidGuestPath(env.WORKSPACE || cwd);
+
+  const guestEnv = {
+    HOME: guestHome,
+    USER: userName,
+    LOGNAME: userName,
+    WORKSPACE: guestWorkspace,
+    CURRENT_CHAT_ID: env.CURRENT_CHAT_ID || "group",
+    PATH: `${ANDROID_GUEST_ENGINE_BIN_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`,
+    TMPDIR: "/tmp",
+    LANG: "C.UTF-8",
+    SSL_CERT_FILE: "/etc/ssl/certs/ca-certificates.crt"
+  };
+
+  if (env.CODEX_HOME) guestEnv.CODEX_HOME = toAndroidGuestPath(env.CODEX_HOME);
+  if (env.ANTIGRAVITY_APP_DATA_DIR) {
+    guestEnv.ANTIGRAVITY_APP_DATA_DIR = toAndroidGuestPath(env.ANTIGRAVITY_APP_DATA_DIR);
+  }
+  if (env.GODEBUG) guestEnv.GODEBUG = env.GODEBUG;
+
+  const guestEnvArgs = Object.entries(guestEnv).map(([key, value]) => `${key}=${value}`);
+  const prootArgs = [
+    "-0",
+    "-r", ANDROID_ROOTFS_DIR,
+    "-b", `${BUDI_WORKSPACE}:/opt/workspaces/budi`,
+    "-b", `${RIAN_WORKSPACE}:/opt/workspaces/rian`,
+    "-b", `${RUNTIME_DIR}:${ANDROID_GUEST_RUNTIME_DIR}`,
+    "-b", "/dev",
+    "-b", "/proc",
+    "-w", guestCwd,
+    "/usr/bin/env",
+    ...guestEnvArgs,
+    getAndroidGuestEnginePath(command),
+    ...args
+  ];
+
+  const prootTemp = path.join(RUNTIME_DIR, "proot-tmp");
+  try { fs.mkdirSync(prootTemp, { recursive: true }); } catch {}
+
+  return {
+    command: ANDROID_PROOT_BIN,
+    args: prootArgs,
+    cwd: RUNTIME_DIR,
+    env: {
+      ...process.env,
+      PROOT_LOADER: ANDROID_PROOT_LOADER,
+      PROOT_TMP_DIR: prootTemp,
+      TMPDIR: prootTemp,
+      LD_LIBRARY_PATH: ANDROID_NATIVE_LIB_DIR
+    }
+  };
+}
+
+function spawnEngine(command, args, options = {}) {
+  const launch = buildEngineLaunch(command, args, options);
+  return spawn(launch.command, launch.args, {
+    ...options,
+    cwd: launch.cwd,
+    env: launch.env
+  });
+}
+
+function spawnEngineSync(command, args, options = {}) {
+  const launch = buildEngineLaunch(command, args, options);
+  return spawnSync(launch.command, launch.args, {
+    ...options,
+    cwd: launch.cwd,
+    env: launch.env
+  });
+}
+
+function execEngine(command, args, options, callback) {
+  const launch = buildEngineLaunch(command, args, options || {});
+  return execFile(
+    launch.command,
+    launch.args,
+    {
+      ...(options || {}),
+      cwd: launch.cwd,
+      env: launch.env
+    },
+    callback
+  );
+}
 const PERSONA_A_PATH = path.join(__dirname, "personas", "ai-1-system.md");
 const PERSONA_B_PATH = path.join(__dirname, "personas", "ai-2-system.md");
 const WEB_DIR = path.join(__dirname, "web");
@@ -376,7 +535,7 @@ function startCodexDeviceLogin(alias = "") {
       PATH: RUNTIME_PATH
     };
 
-    const child = spawn("codex", ["login", "--device-auth"], {
+    const child = spawnEngine("codex", ["login", "--device-auth"], {
       env,
       cwd: profileDir,
       stdio: ["ignore", "pipe", "pipe"]
@@ -880,10 +1039,17 @@ function resolveModelId(input) {
 
 function probeEngine(command) {
   try {
-    const out = spawnSync(command, ["--version"], {
+    const out = spawnEngineSync(command, ["--version"], {
       encoding: "utf8",
-      timeout: 5000,
-      env: { ...process.env, HOME: USER_HOME, PATH: RUNTIME_PATH }
+      timeout: 8000,
+      cwd: BUDI_WORKSPACE,
+      env: {
+        ...process.env,
+        HOME: USER_HOME,
+        USER: "budi",
+        WORKSPACE: BUDI_WORKSPACE,
+        PATH: RUNTIME_PATH
+      }
     });
     const version = String(out.stdout || out.stderr || "").trim().split("\n")[0] || null;
     return {
@@ -1426,13 +1592,15 @@ function executeAgyCli(model, prompt, speaker = "A", currentChatId = "group") {
       PATH: RUNTIME_PATH
     };
 
-    const args = ["--sandbox", "--mode", "accept-edits"];
+    const args = IS_ANDROID_RUNTIME
+      ? ["--mode", "accept-edits"]
+      : ["--sandbox", "--mode", "accept-edits"];
     if (model) {
       args.push("--model", model);
     }
     args.push("-p", prompt);
 
-    const child = execFile("agy", args, { cwd: workspaceDir, env, timeout: 180000 }, (error, stdout, stderr) => {
+    const child = execEngine("agy", args, { cwd: workspaceDir, env, timeout: 180000 }, (error, stdout, stderr) => {
       activeChildProcesses.delete(child);
       if (error) {
         const errMsg = (stderr || stdout || error.message || "").trim();
@@ -1472,14 +1640,14 @@ function executeOpencodeCli(model, prompt, speaker = "A", currentChatId = "group
       "run",
       "--auto",
       "-m", model,
-      "--dir", workspaceDir
+      "--dir", toAndroidGuestPath(workspaceDir)
     ];
 
     let stdoutData = "";
     let stderrData = "";
     let isSettled = false;
 
-    const child = spawn("opencode", args, { cwd: workspaceDir, env });
+    const child = spawnEngine("opencode", args, { cwd: workspaceDir, env });
     activeChildProcesses.add(child);
 
     const timer = setTimeout(() => {
@@ -1574,16 +1742,22 @@ function executeCodexCli(model, prompt, speaker = "A", currentChatId = "group") 
       PATH: RUNTIME_PATH
     };
 
-    const tempOutFile = path.join("/tmp", `codex_out_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.txt`);
+    const tempOutFile = IS_ANDROID_RUNTIME
+      ? path.join(RUNTIME_DIR, "tmp", `codex_out_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.txt`)
+      : path.join("/tmp", `codex_out_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.txt`);
+    try { fs.mkdirSync(path.dirname(tempOutFile), { recursive: true }); } catch {}
+    const codexWorkspaceArg = toAndroidGuestPath(workspaceDir);
+    const codexOutArg = toAndroidGuestPath(tempOutFile);
     const codexModelName = (model || "").replace(/^codex[\/:]/, "") || "gpt-6.1-sol";
 
     const args = [
       "--approve-for-me",
+      ...(IS_ANDROID_RUNTIME ? ["--sandbox", "danger-full-access"] : []),
       "exec",
       "--skip-git-repo-check",
       "-m", codexModelName,
-      "-C", workspaceDir,
-      "-o", tempOutFile,
+      "-C", codexWorkspaceArg,
+      "-o", codexOutArg,
       "-"
     ];
 
@@ -1591,7 +1765,7 @@ function executeCodexCli(model, prompt, speaker = "A", currentChatId = "group") 
     let stderrData = "";
     let isSettled = false;
 
-    const child = spawn("codex", args, { cwd: workspaceDir, env });
+    const child = spawnEngine("codex", args, { cwd: workspaceDir, env });
     activeChildProcesses.add(child);
 
     const timer = setTimeout(() => {
