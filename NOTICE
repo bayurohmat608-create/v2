@@ -1,43 +1,94 @@
-WhatsApp AI Team (Budi & Rian)
-Copyright (c) 2026 Boss Bayu (bayurohmat608-create)
+WhatsApp AI Team v2 (Budi & Rian)
+Copyright (c) 2026 Boss Bayu / BayStudio
 
-This product includes software developed under the Apache License 2.0
-and incorporates or interfaces with third-party open-source and proprietary
-components as described below:
+This repository is distributed under the license stated in LICENSE for original
+project code. The Android runtime also bundles or downloads verified third-party
+components that remain governed by their own licenses and terms. The top-level
+project license does not replace those third-party terms.
 
-================================================================================
-THIRD-PARTY OPEN SOURCE NOTICES & LICENSES
-================================================================================
+===============================================================================
+THIRD-PARTY COMPONENTS AND PROVENANCE
+===============================================================================
 
-1. OpenAI Codex CLI (@openai/codex)
+1. OpenAI Codex CLI
+   - Version pinned by this project: 0.160.1
+   - Upstream: https://github.com/openai/codex
    - License: Apache License 2.0
-   - Copyright: OpenAI
-   - Url: https://github.com/openai/codex
-   - Terms: Permissive distribution under Apache-2.0.
+   - Android packages are checksum-verified during the build.
 
-2. OpenCode CLI (opencode)
-   - License: MIT License
-   - Copyright: OpenCode Contributors
-   - Terms: Permissive distribution under MIT License.
+2. OpenCode CLI
+   - Version pinned by this project: 2.0.24
+   - License: MIT
+   - Android uses the Linux musl packages for ARM64 and x86_64.
+   - Packages are checksum-verified during the build.
 
-3. Highlight.js
-   - License: BSD 3-Clause "New" or "Revised" License
-   - Copyright (c) 2006-2024 Ivan Sagalaev and highlight.js contributors
-   - Terms: Permissive distribution under BSD-3-Clause.
+3. Google Antigravity CLI
+   - Android version pinned by this project: 1.3.1
+   - Android uses Google's Linux musl artifacts for ARM64 and x86_64.
+   - Release URLs and SHA-512 values are pinned from Google's official
+     Antigravity CLI update manifests.
+   - Use and redistribution remain subject to Google's applicable terms.
 
-4. Android Open Source Project (AOSP / AndroidX / Jetpack)
+4. Node.js Mobile runtime
+   - Android runtime: nodejs-mobile 24.20.0-0 from the digidem/nodejs-mobile
+     release line, containing Node.js 24.20.0.
+   - Release ZIP SHA-256 pinned by this project:
+     f5ffbaf4f2679fa9180b0758c637c2f8fc8828300f95129badf213a028fb37bb
+   - Node.js and Node.js Mobile source/components remain subject to their
+     upstream licenses and bundled notices.
+
+5. PRoot
+   - Version: 5.1.107.96
+   - Source: Termux PRoot source/recipe
+   - Source archive SHA-256:
+     75f654fe60dea92dabff2bf083ae8bfe4f91baa6a1a374786a6bf391015eebaa
+   - Termux package metadata identifies the PRoot package as GPL-2.0.
+   - This project builds the Android runtime specifically for package
+     com.bossbayu.aiteam.
+
+6. talloc
+   - Version: 2.5.0
+   - Source archive SHA-256:
+     912afa237510ae542a7733998eb18a12bcda35ab6729c8e2ddb43e8d0ebab007
+   - Termux package metadata identifies its packaged talloc component as
+     GPL-3.0.
+   - It is packaged as a private shared library for the Android PRoot runtime.
+
+7. libandroid-shmem
+   - Version: 0.7
+   - Source archive SHA-256:
+     1e5ff8459bc0a8c229dd8a94b27d119987e09ef3414331c2b5ebfff20b98e867
+   - License: BSD 3-Clause according to the Termux package metadata.
+   - It is packaged as a private shared library for the Android PRoot runtime.
+
+8. Alpine Linux minirootfs
+   - Version: 3.24.2
+   - Official aarch64 SHA-256:
+     9bf70a7f18ea44094cbb5f70c58f9af129c8214745743db0e68e5502cc2ce773
+   - Official x86_64 SHA-256:
+     c5ca053cfe1d85c5b96dff8b9bc57045f7f184a30ffb6b65776409ca90388677
+   - Alpine packages installed at runtime retain their individual licenses.
+
+9. Apache Commons Compress
+   - Version: 1.28.0
    - License: Apache License 2.0
-   - Copyright (c) The Android Open Source Project
-   - Terms: Permissive distribution under Apache-2.0.
+   - Used for safe in-app extraction of verified Linux runtime archives.
 
-5. Google Antigravity CLI (agy)
-   - Antigravity AI Engine orchestration CLI.
-   - Distributed for developer workflows in accordance with Antigravity Developer Preview Terms.
+10. Highlight.js
+    - License: BSD 3-Clause
+    - Copyright remains with its upstream contributors.
 
-================================================================================
-DISCLAIMER & LIMITATION OF LIABILITY
-================================================================================
-All third-party software and components remain the property and copyright
-of their respective owners and are subject to their original licenses.
-See LICENSE file for full terms of the Apache License 2.0 under which this
-project is provided.
+11. Android Open Source Project / AndroidX / Jetpack / Material Components
+    - Components retain their respective upstream licenses, commonly
+      Apache License 2.0.
+
+===============================================================================
+DISTRIBUTION NOTE
+===============================================================================
+
+The Android package contains components under several independent licenses and
+terms. Before public redistribution, store publication, or commercial release,
+review the complete upstream license texts, notices, source-offer obligations,
+and redistribution terms that apply to the exact packaged versions.
+
+All third-party software remains the property of its respective owners.
