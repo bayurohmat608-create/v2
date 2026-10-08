@@ -279,8 +279,7 @@ class WorkstationManager(private val context: Context) {
                 File(staging, "codex/vendor/$triple/bin/codex"),
                 File(staging, "codex/vendor/$triple/bin/codex-code-mode-host"),
                 File(staging, "codex/vendor/$triple/codex-resources/bwrap"),
-                File(staging, "opencode/bin/opencode"),
-                File(staging, "antigravity/bin/agy")
+                File(staging, "opencode/bin/opencode")
             ).forEach { executable ->
                 check(executable.isFile) {
                     "Engine payload tidak lengkap: ${executable.absolutePath}"
