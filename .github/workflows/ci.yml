@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   desktop:
-    name: Desktop source checks
+    name: Desktop runtime verification
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -37,39 +37,68 @@ jobs:
           node --check server.js
           node --check cli.js
 
+      - name: Runtime doctor
+        run: npm run doctor
+
+      - name: Backend smoke test
+        run: npm test
+
       - name: Verify npm dependency health
         run: npm audit --audit-level=high
 
   android:
     name: Android API 36 build and lint
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF-8
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Locate Android sdkmanager
+        id: android-sdk
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -perm -111 | sort -V | tail -1)"
+          fi
+          test -x "$SDKMANAGER"
+          echo "sdkmanager=$SDKMANAGER" >> "$GITHUB_OUTPUT"
+          "$SDKMANAGER" --version
+
+      - name: Accept Android SDK licenses
+        shell: bash
+        run: |
+          set -uo pipefail
+          yes | "${{ steps.android-sdk.outputs.sdkmanager }}" --licenses >/dev/null || true
 
       - name: Install Android toolchain
+        shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager \
+          set -euo pipefail
+          "${{ steps.android-sdk.outputs.sdkmanager }}" \
             "platform-tools" \
             "platforms;android-36" \
             "build-tools;35.0.0" \
             "ndk;27.0.12077973" \
             "cmake;3.22.1"
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/zipalign"
+          test -d "$ANDROID_HOME/ndk/27.0.12077973"
+          test -d "$ANDROID_HOME/cmake/3.22.1"
 
-      - name: Setup Gradle
+      - name: Setup Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
@@ -78,12 +107,23 @@ jobs:
         working-directory: android
         run: gradle --no-daemon --console=plain lintDebug assembleDebug
 
-      - name: Verify 16 KB APK alignment
+      - name: Verify APK and 16 KB alignment
+        shell: bash
         run: |
+          set -euo pipefail
           APK=android/app/build/outputs/apk/debug/app-debug.apk
           test -f "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 -v 4 "$APK"
           sha256sum "$APK"
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-lint-report
+          path: android/app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
