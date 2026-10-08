@@ -195,18 +195,16 @@ class NativeBridge(
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_MESSAGES,
-                "Pesan WhatsApp Tim AI",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifikasi pesan masuk dan update tugas dari Budi & Rian"
-                enableVibration(true)
-                enableLights(true)
-            }
-            val manager = context.getSystemService(NotificationManager::class.java)
-            manager?.createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            NOTIFICATION_CHANNEL_MESSAGES,
+            "Pesan WhatsApp Tim AI",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Notifikasi pesan masuk dan update tugas dari Budi & Rian"
+            enableVibration(true)
+            enableLights(true)
         }
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager?.createNotificationChannel(channel)
     }
 }
