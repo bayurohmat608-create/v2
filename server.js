@@ -11,6 +11,7 @@ const LOCAL_BIN_DIR = path.join(__dirname, ".local", "bin");
 const NODE_BIN_DIR = path.join(__dirname, "node_modules", ".bin");
 const DEFAULT_AGY_HOME = process.env.ANTIGRAVITY_APP_DATA_DIR || path.join(USER_HOME, ".gemini", "antigravity-cli");
 const DEFAULT_CODEX_HOME = process.env.CODEX_HOME || path.join(USER_HOME, ".codex");
+const ANTIGRAVITY_INTEGRATION_ENABLED = false;
 const RUNTIME_PATH = [
   LOCAL_BIN_DIR,
   NODE_BIN_DIR,
@@ -62,8 +63,6 @@ function toAndroidGuestPath(hostPath) {
 
 function getAndroidGuestEnginePath(command) {
   const names = {
-    agy: "agy",
-    antigravity: "agy",
     opencode: "opencode",
     codex: "codex"
   };
@@ -275,7 +274,6 @@ function initAuthVault() {
       }
       defaultProfiles.push({
         id: "agy-default",
-        engine: "antigravity",
         alias: `Akun Google Utama (${agyEmail})`,
         email: agyEmail,
         type: "oauth_token",
@@ -345,10 +343,14 @@ function getActiveAuthProfile(engine, speaker = null) {
 }
 
 function getPublicAuthVault() {
+  const supportedProfiles = authVault.profiles.filter(p => p.engine !== "antigravity");
   return {
-    active: authVault.active,
-    personaBinding: authVault.personaBinding || { budi: {}, rian: {} },
-    profiles: authVault.profiles.map(p => ({
+    active: { codex: authVault.active && authVault.active.codex ? authVault.active.codex : null },
+    personaBinding: {
+      budi: { codex: authVault.personaBinding?.budi?.codex || null },
+      rian: { codex: authVault.personaBinding?.rian?.codex || null }
+    },
+    profiles: supportedProfiles.map(p => ({
       id: p.id,
       engine: p.engine,
       alias: p.alias,
@@ -361,6 +363,7 @@ function getPublicAuthVault() {
 }
 
 function switchAuthProfile(engine, profileId) {
+  if (engine === "antigravity") throw new Error("Integrasi Antigravity dinonaktifkan untuk kepatuhan Terms.");
   if (!engine || !profileId) throw new Error("Engine dan profileId diperlukan");
   const target = authVault.profiles.find(p => p.id === profileId && p.engine === engine);
   if (!target) throw new Error("Profil akun tidak ditemukan untuk engine ini");
@@ -372,8 +375,8 @@ function switchAuthProfile(engine, profileId) {
 }
 
 function addAuthProfile({ engine, alias, credential, setAsActive }) {
-  if (!engine || (engine !== "antigravity" && engine !== "codex")) {
-    throw new Error("Engine harus 'antigravity' atau 'codex'");
+  if (!engine || engine !== "codex") {
+    throw new Error("Hanya profil OpenAI Codex yang didukung oleh aplikasi.");
   }
   if (!credential || typeof credential !== "string" || !credential.trim()) {
     throw new Error("Kredensial / token / API key tidak boleh kosong");
@@ -838,7 +841,6 @@ async function exchangeGoogleAuthCode(code, sessionOrStateId, customRedirectUri 
   const finalAlias = session.alias || (email ? `Akun Google (${email})` : `Akun Google Gemini`);
   const newProfile = {
     id: session.profileId,
-    engine: "antigravity",
     alias: finalAlias,
     email: email,
     type: "oauth_token",
@@ -972,14 +974,6 @@ if (WAKELOCK_DISABLED) {
 
 const DEFAULT_MODELS = [
   // --- Antigravity Engine Models ---
-  { id: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High) - Cepat & Cerdas", engine: "antigravity", group: "Antigravity Models" },
-  { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)", engine: "antigravity", group: "Antigravity Models" },
-  { id: "gemini-3.7-flash-high", name: "Gemini 3.7 Flash (High)", engine: "antigravity", group: "Antigravity Models" },
-  { id: "gemini-3.7-flash-medium", name: "Gemini 3.7 Flash (Medium)", engine: "antigravity", group: "Antigravity Models" },
-  { id: "gemini-3.1-pro-high", name: "Gemini 3.1 Pro (High) - Penalaran Mendalam", engine: "antigravity", group: "Antigravity Models" },
-  { id: "claude-sonnet-5-5-high", name: "Claude Sonnet 5.5 (High)", engine: "antigravity", group: "Antigravity Models" },
-  { id: "claude-opus-5-5-high", name: "Claude Opus 5.5 (High)", engine: "antigravity", group: "Antigravity Models" },
-  { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)", engine: "antigravity", group: "Antigravity Models" },
 
   // --- OpenAI Codex Engine Models ---
   { id: "codex/gpt-6.1-sol", name: "OpenAI Codex · GPT-6.1 Sol (Default & Super Cerdas)", engine: "codex", group: "OpenAI Codex Models" },
@@ -1019,7 +1013,7 @@ function isCodexModel(model) {
 function getEngineTag(model) {
   if (isCodexModel(model)) return "OpenAI Codex";
   if (isOpencodeModel(model)) return "Opencode";
-  return "Antigravity";
+  return "Unsupported";
 }
 
 function resolveModelId(input) {
@@ -1066,7 +1060,6 @@ function probeEngine(command) {
 
 function getRuntimeHealth() {
   const engines = {
-    antigravity: probeEngine("agy"),
     opencode: probeEngine("opencode"),
     codex: probeEngine("codex")
   };
@@ -1100,8 +1093,12 @@ const savedData = loadInitialData() || {};
 
 let state = {
   topic: savedData.topic || "Apakah AI akan menggantikan programmer?",
-  modelA: savedData.modelA || "gemini-3.7-flash-medium",
-  modelB: savedData.modelB || "gemini-3.7-flash-medium",
+  modelA: DEFAULT_MODELS.some(m => m.id === savedData.modelA)
+    ? savedData.modelA
+    : "codex/gpt-6.1-sol",
+  modelB: DEFAULT_MODELS.some(m => m.id === savedData.modelB)
+    ? savedData.modelB
+    : "opencode/nemotron-3-ultra-free",
   isRunning: false,
   isGenerating: false,
   typingWho: null, // "Budi" or "Rian" or null
@@ -1564,54 +1561,10 @@ ${keyDirectives.slice(-8).join("\n") || "- Percakapan berjalan produktif sesuai 
 const activeChildProcesses = new Set();
 let aiToAiJapriCount = 0;
 
-function executeAgyCli(model, prompt, speaker = "A", currentChatId = "group") {
-  return new Promise((resolve, reject) => {
-    const isA = speaker === "A";
-    const workspaceDir = isA ? BUDI_WORKSPACE : RIAN_WORKSPACE;
-    const userName = isA ? "budi" : "rian";
-
-    try {
-      if (!fs.existsSync(workspaceDir)) {
-        fs.mkdirSync(workspaceDir, { recursive: true });
-      }
-    } catch {}
-
-    const activeAgy = getActiveAuthProfile("antigravity", speaker);
-    const agyAppDataDir = (activeAgy && activeAgy.dir && fs.existsSync(activeAgy.dir))
-      ? activeAgy.dir
-      : DEFAULT_AGY_HOME;
-
-    const env = {
-      ...process.env,
-      GODEBUG: "netdns=cgo",
-      HOME: USER_HOME,
-      USER: userName,
-      WORKSPACE: workspaceDir,
-      CURRENT_CHAT_ID: currentChatId || "group",
-      ANTIGRAVITY_APP_DATA_DIR: agyAppDataDir,
-      PATH: RUNTIME_PATH
-    };
-
-    const args = IS_ANDROID_RUNTIME
-      ? ["--mode", "accept-edits"]
-      : ["--sandbox", "--mode", "accept-edits"];
-    if (model) {
-      args.push("--model", model);
-    }
-    args.push("-p", prompt);
-
-    const child = execEngine("agy", args, { cwd: workspaceDir, env, timeout: 180000 }, (error, stdout, stderr) => {
-      activeChildProcesses.delete(child);
-      if (error) {
-        const errMsg = (stderr || stdout || error.message || "").trim();
-        const errObj = new Error(errMsg);
-        errObj.isQuotaError = /RESOURCE_EXHAUSTED|Individual quota reached|error_code":429|code 429|quota/i.test(errMsg);
-        return reject(errObj);
-      }
-      resolve(stdout.trim());
-    });
-    activeChildProcesses.add(child);
-  });
+function executeAgyCli() {
+  return Promise.reject(new Error(
+    "Integrasi Antigravity dinonaktifkan. Google Terms saat ini melarang akses Service melalui produk pihak ketiga. Gunakan terminal umum secara manual atau pilih Codex/OpenCode."
+  ));
 }
 
 function executeOpencodeCli(model, prompt, speaker = "A", currentChatId = "group") {
@@ -1850,7 +1803,7 @@ async function callAgent(preferredModel, prompt, speaker = "A", currentChatId = 
   } else if (isOpencode) {
     return await executeOpencodeCli(preferredModel, prompt, speaker, currentChatId);
   } else {
-    return await executeAgyCli(preferredModel, prompt, speaker, currentChatId);
+    throw new Error(`Model tidak didukung oleh engine aplikasi: ${preferredModel}. Pilih OpenAI Codex atau OpenCode.`);
   }
 }
 
@@ -2739,6 +2692,18 @@ setInterval(() => {
 // HTTP Server
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || "localhost:" + PORT}`);
+
+  // Antigravity integration is disabled by product policy and current Google Terms.
+  if (
+    url.pathname.startsWith("/api/auth/google") ||
+    url.pathname.startsWith("/api/auth/antigravity")
+  ) {
+    res.writeHead(410, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({
+      error: "Integrasi Antigravity dinonaktifkan. Gunakan OpenAI Codex atau OpenCode."
+    }));
+    return;
+  }
 
   // Same-origin CORS. Native/CLI calls without Origin remain allowed.
   const origin = req.headers.origin;
