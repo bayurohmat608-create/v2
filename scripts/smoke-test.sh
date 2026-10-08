@@ -8,6 +8,7 @@ LOG="${TMPDIR:-/tmp}/chat-ai-smoke-$PORT.log"
 export PATH="$DIR/.local/bin:$DIR/node_modules/.bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 cleanup(){
+  rm -f "/tmp/chat-ai-root-$PORT.html" /tmp/chat-ai-status.json /tmp/chat-ai-models.json /tmp/chat-ai-health.json /tmp/chat-ai-vault.json 2>/dev/null || true
   if [ -n "${pid:-}" ] && kill -0 "$pid" 2>/dev/null; then
     kill "$pid" 2>/dev/null || true
     for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
@@ -31,7 +32,9 @@ if [ "$ready" -ne 1 ]; then
   exit 1
 fi
 
-curl -fsS "http://$HOST:$PORT/" | grep -qi '<html' || { echo "Root HTML gagal"; exit 1; }
+ROOT_HTML="/tmp/chat-ai-root-$PORT.html"
+curl -fsS "http://$HOST:$PORT/" -o "$ROOT_HTML"
+grep -qi '<html' "$ROOT_HTML" || { echo "Root HTML gagal"; exit 1; }
 curl -fsS "http://$HOST:$PORT/api/status" > /tmp/chat-ai-status.json
 curl -fsS "http://$HOST:$PORT/api/models" > /tmp/chat-ai-models.json
 curl -fsS "http://$HOST:$PORT/api/health" > /tmp/chat-ai-health.json
