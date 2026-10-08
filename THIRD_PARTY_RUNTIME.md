@@ -97,9 +97,10 @@ not make Antigravity part of the managed runtime.
 - Source archive SHA-256:
   `912afa237510ae542a7733998eb18a12bcda35ab6729c8e2ddb43e8d0ebab007`
 - Packaged as private dynamic library `libtalloc_v2.so`.
-- License obligations are governed by the exact upstream talloc source notices
-  used for this build. The Termux package recipe metadata should also be
-  reviewed as part of release compliance.
+- Upstream `talloc.c` and `LICENSE` for version 2.5.0 state
+  LGPL-3.0-or-later for the talloc library.
+- v2 keeps talloc as a private dynamically linked shared library rather than
+  statically absorbing it into PRoot.
 
 ### libandroid-shmem
 
