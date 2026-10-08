@@ -88,6 +88,8 @@
             android:textStyle="bold" />
 
         <EditText
+            android:inputType="text"
+            android:importantForAutofill="no"
             android:id="@+id/etTerminalCommand"
             android:layout_width="0dp"
             android:layout_height="40dp"
