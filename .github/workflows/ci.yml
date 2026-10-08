@@ -37,6 +37,22 @@ jobs:
           node --check server.js
           node --check cli.js
 
+      - name: Enforce managed-engine policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORKSTATION=android/app/src/main/java/com/bossbayu/aiteam/runtime/WorkstationManager.kt
+
+          if grep -Eiq 'ANTIGRAVITY_VERSION|antigravity-public|bin/agy|File\(binDir, "agy"\)' "$WORKSTATION"; then
+            echo "Managed Antigravity provisioning is prohibited by project policy." >&2
+            exit 1
+          fi
+
+          if grep -Eiq '(execFile|spawn|spawnSync|spawnEngine)\([^\n]*["'\''']agy["'\''']' server.js; then
+            echo "Backend must not invoke Antigravity CLI as a managed engine." >&2
+            exit 1
+          fi
+
       - name: Runtime doctor
         run: npm run doctor
 
