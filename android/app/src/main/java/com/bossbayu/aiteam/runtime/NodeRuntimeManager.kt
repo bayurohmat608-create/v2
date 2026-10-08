@@ -146,7 +146,6 @@ class NodeRuntimeManager(
 
     private fun configureEnvironment() {
         val nativeLibDir = File(context.applicationInfo.nativeLibraryDir)
-        val antigravityHome = File(authVaultDir, "antigravity/default").apply { mkdirs() }
         val codexHome = File(authVaultDir, "codex/default").apply { mkdirs() }
         val guestHome = File(runtimeDir, "home").apply { mkdirs() }
 
@@ -160,7 +159,6 @@ class NodeRuntimeManager(
             "BUDI_WORKSPACE" to workstationManager.budiWorkspace.absolutePath,
             "RIAN_WORKSPACE" to workstationManager.rianWorkspace.absolutePath,
             "WORKSTATIONS_DIR" to workstationManager.workstationsBaseDir.absolutePath,
-            "ANTIGRAVITY_APP_DATA_DIR" to antigravityHome.absolutePath,
             "CODEX_HOME" to codexHome.absolutePath,
             "ANDROID_RUNTIME" to "1",
             "ANDROID_NATIVE_LIB_DIR" to nativeLibDir.absolutePath,
