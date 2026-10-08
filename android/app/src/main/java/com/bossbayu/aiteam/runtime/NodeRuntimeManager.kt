@@ -145,6 +145,11 @@ class NodeRuntimeManager(
     }
 
     private fun configureEnvironment() {
+        val nativeLibDir = File(context.applicationInfo.nativeLibraryDir)
+        val antigravityHome = File(authVaultDir, "antigravity/default").apply { mkdirs() }
+        val codexHome = File(authVaultDir, "codex/default").apply { mkdirs() }
+        val guestHome = File(runtimeDir, "home").apply { mkdirs() }
+
         val env = mapOf(
             "PORT" to DEFAULT_PORT.toString(),
             "HOST" to "127.0.0.1",
@@ -155,8 +160,17 @@ class NodeRuntimeManager(
             "BUDI_WORKSPACE" to workstationManager.budiWorkspace.absolutePath,
             "RIAN_WORKSPACE" to workstationManager.rianWorkspace.absolutePath,
             "WORKSTATIONS_DIR" to workstationManager.workstationsBaseDir.absolutePath,
+            "ANTIGRAVITY_APP_DATA_DIR" to antigravityHome.absolutePath,
+            "CODEX_HOME" to codexHome.absolutePath,
             "ANDROID_RUNTIME" to "1",
-            "ANDROID_NATIVE_LIB_DIR" to context.applicationInfo.nativeLibraryDir,
+            "ANDROID_NATIVE_LIB_DIR" to nativeLibDir.absolutePath,
+            "ANDROID_ROOTFS_DIR" to workstationManager.alpineDir.absolutePath,
+            "ANDROID_PROOT_BIN" to File(nativeLibDir, "libproot_exec.so").absolutePath,
+            "ANDROID_PROOT_LOADER" to File(nativeLibDir, "libproot_loader.so").absolutePath,
+            "ANDROID_GUEST_RUNTIME_DIR" to "/opt/aiteam/runtime",
+            "ANDROID_GUEST_ENGINE_BIN_DIR" to "/opt/aiteam/bin",
+            "ANDROID_GUEST_HOME_DIR" to "/opt/aiteam/runtime/home",
+            "ANDROID_HOST_GUEST_HOME_DIR" to guestHome.absolutePath,
             "PATH" to listOf(
                 enginesDir.absolutePath,
                 File(context.filesDir, "bin").absolutePath,
