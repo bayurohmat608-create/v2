@@ -14,13 +14,13 @@ THIRD-PARTY COMPONENTS AND PROVENANCE
    - Version pinned by this project: 0.160.1
    - Upstream: https://github.com/openai/codex
    - License: Apache License 2.0
-   - Android packages are checksum-verified during the build.
+   - Android downloads the pinned package on demand and verifies SHA-512 before extraction.
 
 2. OpenCode CLI
    - Version pinned by this project: 2.0.24
    - License: MIT
    - Android uses the Linux musl packages for ARM64 and x86_64.
-   - Packages are checksum-verified during the build.
+   - Android downloads the pinned package on demand and verifies SHA-512 before extraction.
 
 3. Antigravity integration status
    - Antigravity is not bundled, authenticated, or invoked by this project.
