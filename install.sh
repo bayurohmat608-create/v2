@@ -19,7 +19,7 @@ command_ok() {
   "$cmd" --version >/dev/null 2>&1
 }
 
-mkdir -p "$RUNTIME_DIR/workspaces/budi" "$RUNTIME_DIR/workspaces/rian"   "$LOCAL_BIN" "$DIR/auth_vault/antigravity" "$DIR/auth_vault/codex" "$DIR/chat_files"
+mkdir -p "$RUNTIME_DIR/workspaces/budi" "$RUNTIME_DIR/workspaces/rian"   "$LOCAL_BIN" "$DIR/auth_vault/codex" "$DIR/chat_files"
 
 command -v node >/dev/null 2>&1 || die "Node.js belum terpasang. Gunakan Node.js v18+."
 NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])')"
@@ -35,15 +35,6 @@ ok "Dependency Node.js siap."
 export PATH="$LOCAL_BIN:$DIR/node_modules/.bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 engine_failures=0
-
-if command -v agy >/dev/null 2>&1 && command_ok "$(command -v agy)"; then
-  ln -sf "$(command -v agy)" "$LOCAL_BIN/agy"
-  ok "Antigravity CLI: $("$(command -v agy)" --version 2>/dev/null | head -1)"
-else
-  warn "Antigravity CLI belum tersedia atau tidak executable."
-  warn "Pasang dari dokumentasi resmi Google: https://www.antigravity.google/docs/cli/install/"
-  engine_failures=$((engine_failures + 1))
-fi
 
 if [ -x "$DIR/node_modules/.bin/opencode" ] && command_ok "$DIR/node_modules/.bin/opencode"; then
   ln -sf "$DIR/node_modules/.bin/opencode" "$LOCAL_BIN/opencode"
