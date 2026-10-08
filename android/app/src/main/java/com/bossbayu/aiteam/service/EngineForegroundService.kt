@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.Process
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.bossbayu.aiteam.MainActivity
@@ -22,8 +23,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
- * Foreground Service that keeps the embedded Node.js server, PRoot container,
- * and AI CLI engines active in background without Android killing the process.
+ * Dedicated foreground service process that owns the embedded Node runtime.
+ *
+ * Running it in :engine isolates Node/V8 from the UI process and guarantees
+ * one Node instance per process.
  */
 class EngineForegroundService : Service() {
 
@@ -70,15 +73,29 @@ class EngineForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                Log.d(TAG, "Stopping EngineForegroundService...")
-                stopEngine()
+                Log.i(TAG, "Explicit engine stop requested.")
+                nodeRuntimeManager.stopServer()
+                wakeLockManager.release()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+
+                Thread {
+                    try {
+                        Thread.sleep(150)
+                    } catch (_: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                    }
+                    Process.killProcess(Process.myPid())
+                }.start()
+
                 return START_NOT_STICKY
             }
+
             ACTION_START, null -> {
-                Log.d(TAG, "Starting EngineForegroundService...")
-                startForeground(NOTIFICATION_ID, createNotification("Memulai server lokal..."))
+                startForeground(
+                    NOTIFICATION_ID,
+                    createNotification("Memulai embedded Node.js...")
+                )
                 startEngine()
             }
         }
@@ -87,32 +104,30 @@ class EngineForegroundService : Service() {
 
     private fun startEngine() {
         wakeLockManager.acquire()
+
         serviceScope.launch {
             try {
-                // Initialize workstations (Alpine default + persistent workspaces)
-                workstationManager.ensureWorkstationsReady()
+                // Workspaces themselves are plain app-private directories.
+                // Linux workstation provisioning is independent and checked
+                // only when the user opens the native terminal.
+                workstationManager.budiWorkspace
+                workstationManager.rianWorkspace
 
-                // Boot embedded Node.js server
                 val port = nodeRuntimeManager.startServer()
-                updateNotification("Server Aktif di localhost:$port (Workstation: ${workstationManager.currentWorkstation})")
+                updateNotification("Server lokal aktif di 127.0.0.1:$port")
             } catch (e: Exception) {
                 Log.e(TAG, "Engine start failed: ${e.message}", e)
-                updateNotification("Error: ${e.message}")
+                updateNotification("Runtime error: ${e.message ?: "unknown"}")
             }
-        }
-    }
-
-    private fun stopEngine() {
-        serviceScope.launch {
-            nodeRuntimeManager.stopServer()
-            wakeLockManager.release()
         }
     }
 
     private fun createNotification(content: String): Notification {
         val launchIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, launchIntent,
+            this,
+            0,
+            launchIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
@@ -150,8 +165,8 @@ class EngineForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        super.onDestroy()
-        stopEngine()
+        wakeLockManager.release()
         serviceScope.cancel()
+        super.onDestroy()
     }
 }
