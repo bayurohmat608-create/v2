@@ -2,6 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { execFile, spawn, spawnSync } = require("child_process");
+const { getTeamRegistry } = require("./agent/team-registry");
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "127.0.0.1";
@@ -2548,6 +2549,15 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // CP19: metadata-only team roster. No private transcript or credentials are
+  // exposed here. Zovia's actual chat/job execution remains disabled until
+  // authenticated per-room data services and engine readiness are implemented.
+  if (url.pathname === "/api/team" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify(getTeamRegistry()));
+    return;
+  }
+
   if (url.pathname === "/api/health" && req.method === "GET") {
     const health = getRuntimeHealth();
     res.writeHead(health.ok ? 200 : 503, { "Content-Type": "application/json; charset=utf-8" });
@@ -3449,6 +3459,16 @@ Tulis 1 pesan inisiatif japri (1-2 kalimat) yang ramah dan solutif ke Boss Bayu.
     req.on("end", () => {
       try {
         const data = JSON.parse(body || "{}");
+        // Do not route unfinished Zovia chat requests through Budi or Rian.
+        // This fail-closed gate must precede any message persistence or run.
+        if (data.chatId === "direct_zovia") {
+          res.writeHead(409, { "Content-Type": "application/json; charset=utf-8" });
+          res.end(JSON.stringify({
+            code: "AGENT_NOT_READY",
+            error: "Zovia chat execution is not enabled yet; private room is reserved."
+          }));
+          return;
+        }
         if (data.text) {
           handleUserMessage(data.text, data.chatId || "group", data.quoted || null, {
             type: data.type,
