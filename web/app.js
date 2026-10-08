@@ -3268,24 +3268,17 @@ function renderAuthVaultUI() {
   const container = document.getElementById("vaultProfileList");
   if (!container) return;
 
-  const currentEngine = appState.currentVaultTab || "antigravity";
+  const currentEngine = "codex";
   const allProfiles = (appState.authVault && appState.authVault.profiles) || [];
   const profiles = allProfiles.filter(p => p.engine === currentEngine);
   const activeId = appState.authVault && appState.authVault.active && appState.authVault.active[currentEngine];
 
-  // Update simultaneous banner status
-  const bannerAgy = document.getElementById("bannerAgyStatus");
   const bannerCodex = document.getElementById("bannerCodexStatus");
-  if (bannerAgy && bannerCodex && appState.authVault) {
-    const agyActiveId = appState.authVault.active?.antigravity;
+  if (bannerCodex && appState.authVault) {
     const codexActiveId = appState.authVault.active?.codex;
-    const agyProf = allProfiles.find(p => p.id === agyActiveId);
     const codexProf = allProfiles.find(p => p.id === codexActiveId);
-
-    const agyLabel = agyProf ? (agyProf.email || agyProf.alias) : "Belum ada akun";
     const codexLabel = codexProf ? (codexProf.email || codexProf.alias) : "Belum ada akun";
 
-    bannerAgy.innerHTML = `<span class="banner-item">${providerLogoHtml("google")} Google: <strong style="color: #8ab4f8;" title="${escapeHtml(agyLabel)}">${escapeHtml(agyLabel)}</strong></span>`;
     bannerCodex.innerHTML = `<span class="banner-item">${providerLogoHtml("openai")} OpenAI: <strong style="color: #34d399;" title="${escapeHtml(codexLabel)}">${escapeHtml(codexLabel)}</strong></span>`;
   }
 
@@ -3302,9 +3295,8 @@ function renderAuthVaultUI() {
   container.innerHTML = "";
   profiles.forEach(p => {
     const isActive = p.id === activeId;
-    const isAgy = p.engine === "antigravity";
-    const avatarBadgeClass = isAgy ? "badge-agy-avatar" : "badge-codex-avatar";
-    const avatarText = providerLogoHtml(isAgy ? "google" : "openai");
+    const avatarBadgeClass = "badge-codex-avatar";
+    const avatarText = providerLogoHtml("openai");
 
     const card = document.createElement("div");
     card.className = `vault-profile-card ${isActive ? "active-profile" : ""}`;
