@@ -1,6 +1,6 @@
 # WhatsApp AI Team v2 — Budi & Rian
 
-Standalone local-first AI team workspace with a WhatsApp-inspired web interface, terminal TUI, native Android host, and three CLI engine integrations: Google Antigravity, OpenAI Codex, and OpenCode.
+Standalone local-first AI team workspace with a WhatsApp-inspired web interface, terminal TUI, native Android host, and two managed AI CLI engines: OpenAI Codex and OpenCode.
 
 ## What v2 changes
 
@@ -13,7 +13,6 @@ On Android, terminal execution is handled by the native terminal bridge. The APK
 - Node.js 18 or newer
 - npm
 - curl
-- Google Antigravity CLI (`agy`) installed and available on `PATH`
 - Linux, macOS, Android/Termux, or another compatible Node.js host
 
 OpenAI Codex CLI and OpenCode CLI are installed as project dependencies and select their native package for the current OS/CPU.
@@ -57,7 +56,7 @@ npm run doctor
 npm test
 ```
 
-`doctor` checks the runtime, source syntax, required assets, and all three CLI engines. `npm test` starts an isolated server and verifies the web root, status/model/health endpoints, engine health, and auth-vault redaction.
+`doctor` checks the runtime, source syntax, required assets, and both managed CLI engines. `npm test` starts an isolated server and verifies the web root, status/model/health endpoints, engine health, and auth-vault redaction.
 
 ## Runtime layout
 
@@ -101,20 +100,26 @@ The Android build is intentionally self-contained at the runtime layer:
 - **Node.js backend:** embedded Node.js Mobile 24.20.0-0 loaded through JNI from APK native libraries. No Node executable is copied to writable app storage.
 - **Linux workstation:** PRoot 5.1.107.96 executes from Android's native library area with an APK-resident loader. PRoot is packaged with private dynamic `talloc` and `libandroid-shmem` dependencies.
 - **Root filesystem:** official Alpine Linux 3.24.2 minirootfs for ARM64/x86_64. Gradle verifies the official SHA-256 before packaging.
-- **AI engines:** Codex 0.160.1, OpenCode 2.0.24 musl, and Antigravity 1.3.1 musl are downloaded from pinned upstream artifacts and verified during the build.
+- **AI engines:** Codex 0.160.1 and OpenCode 2.0.24 musl are downloaded from pinned upstream artifacts and verified during the build.
 - **Guest dependencies:** on first provisioning, Alpine installs small native dependencies such as CA certificates, `libstdc++`, `ripgrep`, `zsh`, `git`, `bash`, and `curl`. This step requires network access to the configured Alpine repositories.
 - **Canonical assets:** Android packages the root `server.js`, `cli.js`, `web/`, and `personas/` at build time, so the APK and desktop runtime share one backend source of truth.
 
 The embedded backend runs in the dedicated Android `:engine` process. AI CLI execution on Android is routed through the verified PRoot + Alpine workstation and bind-mounts only the required runtime/workspace paths. The native Android terminal uses the same PRoot workstation. Raw shell execution over `/api/terminal/exec` remains disabled.
 
-Because three large native AI CLIs are bundled for two ABIs, a universal debug APK is intentionally large. Production distribution should prefer Android App Bundles / ABI-specific delivery so each device receives only its architecture.
+Because two large native AI CLIs are bundled for two ABIs, a universal debug APK is intentionally large. Production distribution should prefer Android App Bundles / ABI-specific delivery so each device receives only its architecture.
+
+## Antigravity policy
+
+Antigravity is **not** bundled, authenticated, or invoked as a managed engine by v2. Current Google Antigravity terms restrict access to the service through third-party products, so the application deliberately exposes no Antigravity OAuth/API integration or automated agent execution path.
+
+The native terminal remains a general-purpose user-controlled terminal. v2 does not install, configure, authenticate, or invoke Antigravity on the user's behalf.
 
 ## Security model
+
 
 - Backend binds to `127.0.0.1` by default.
 - Browser API access is same-origin instead of wildcard CORS.
 - Auth credentials stay in the runtime vault and are never returned by the public vault API.
-- Antigravity runs with sandbox restrictions and accept-edits mode instead of the dangerous permission-bypass flag.
 - Codex uses automatic approval with its workspace-write sandbox instead of the full sandbox bypass flag.
 - Raw shell execution through the HTTP backend is disabled.
 - Android WebView grants microphone/camera resources only when the corresponding Android runtime permission is granted.
@@ -145,4 +150,4 @@ Optional asset paths may be added after the title.
 
 ## License
 
-Project source is licensed under Apache License 2.0. See `LICENSE` and `NOTICE` for license and third-party attribution information.
+Original project source is licensed under Apache License 2.0. Bundled runtime components keep their own upstream licenses. See `LICENSE`, `NOTICE`, and `THIRD_PARTY_RUNTIME.md` for provenance, checksums, and attribution.
