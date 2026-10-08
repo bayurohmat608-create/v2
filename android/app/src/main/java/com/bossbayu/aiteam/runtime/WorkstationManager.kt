@@ -17,11 +17,12 @@ import java.security.MessageDigest
 import java.util.Base64
 
 /**
- * Manages app-private Linux workstations and the bundled AI engine pack.
+ * Manages the app-private Alpine workstation and verified AI engine pack.
  *
- * Alpine and engine archives are checksum-verified by Gradle before packaging.
- * Extraction is staged, path-safe, and never relies on executable files copied
- * from Android writable storage.
+ * Alpine is checksum-verified by Gradle before APK packaging. AI engine
+ * archives are downloaded on demand from pinned HTTPS sources, verified with
+ * SHA-512 before extraction, and installed inside the app-private rootfs.
+ * Extraction is staged and path-safe.
  */
 class WorkstationManager(private val context: Context) {
 
