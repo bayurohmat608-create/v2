@@ -47,9 +47,13 @@ jobs:
         run: npm audit --audit-level=high
 
   android:
-    name: Android API 36 build and lint
+    name: Android API 36 · ${{ matrix.runtime_abi }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime_abi: [arm64-v8a, x86_64]
     env:
       JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF-8
       ANDROID_HOME: /usr/local/lib/android/sdk
@@ -105,7 +109,7 @@ jobs:
 
       - name: Lint and assemble debug APK
         working-directory: android
-        run: gradle --no-daemon --console=plain lintDebug assembleDebug
+        run: gradle --no-daemon --console=plain -PruntimeAbi=${{ matrix.runtime_abi }} lintDebug assembleDebug
 
       - name: Verify APK and 16 KB alignment
         shell: bash
@@ -120,7 +124,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-lint-report
+          name: android-lint-report-${{ matrix.runtime_abi }}
           path: android/app/build/reports/lint-results-debug.html
           if-no-files-found: ignore
           retention-days: 7
@@ -128,7 +132,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: whatsapp-ai-team-v2-debug
+          name: whatsapp-ai-team-v2-debug-${{ matrix.runtime_abi }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
