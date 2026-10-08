@@ -9,9 +9,7 @@ const USER_HOME = process.env.HOME || __dirname;
 const RUNTIME_DIR = process.env.CHAT_AI_RUNTIME_DIR || path.join(__dirname, ".runtime");
 const LOCAL_BIN_DIR = path.join(__dirname, ".local", "bin");
 const NODE_BIN_DIR = path.join(__dirname, "node_modules", ".bin");
-const DEFAULT_AGY_HOME = process.env.ANTIGRAVITY_APP_DATA_DIR || path.join(USER_HOME, ".gemini", "antigravity-cli");
 const DEFAULT_CODEX_HOME = process.env.CODEX_HOME || path.join(USER_HOME, ".codex");
-const ANTIGRAVITY_INTEGRATION_ENABLED = false;
 const RUNTIME_PATH = [
   LOCAL_BIN_DIR,
   NODE_BIN_DIR,
@@ -206,7 +204,7 @@ if (fs.existsSync(WORKSTATION_STATE_FILE)) {
   } catch {}
 }
 
-// ===== MULTI-PROFILE AUTH VAULT (Antigravity & Codex) =====
+// ===== MULTI-PROFILE AUTH VAULT (OpenAI Codex) =====
 const AUTH_VAULT_DIR = process.env.AUTH_VAULT_DIR || path.join(RUNTIME_DIR, "auth_vault");
 const AUTH_VAULT_FILE = path.join(AUTH_VAULT_DIR, "vault.json");
 
@@ -375,7 +373,7 @@ function switchAuthProfile(engine, profileId) {
 }
 
 function addAuthProfile({ engine, alias, credential, setAsActive }) {
-  if (!engine || engine !== "codex") {
+  if (engine !== "codex") {
     throw new Error("Hanya profil OpenAI Codex yang didukung oleh aplikasi.");
   }
   if (!credential || typeof credential !== "string" || !credential.trim()) {
@@ -383,83 +381,56 @@ function addAuthProfile({ engine, alias, credential, setAsActive }) {
   }
 
   const trimmedCred = credential.trim();
-  const profileId = `${engine}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  const profileDir = path.join(AUTH_VAULT_DIR, engine, profileId);
+  const profileId = `codex-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const profileDir = path.join(AUTH_VAULT_DIR, "codex", profileId);
   fs.mkdirSync(profileDir, { recursive: true });
 
   let email = null;
   let credType = "token";
   let masked = maskCredential(trimmedCred);
+  let authJsonStr = "";
 
-  if (engine === "antigravity") {
-    let tokenJsonStr = trimmedCred;
+  if (trimmedCred.startsWith("sk-")) {
+    credType = "api_key";
+    authJsonStr = JSON.stringify({
+      auth_mode: "api_key",
+      OPENAI_API_KEY: trimmedCred
+    }, null, 2);
+  } else {
     try {
       const parsed = JSON.parse(trimmedCred);
-      if (parsed.id_token) email = parseEmailFromJwt(parsed.id_token);
-      tokenJsonStr = JSON.stringify(parsed);
-      credType = "oauth_token";
-      if (parsed.token && parsed.token.access_token) {
-        masked = maskCredential(parsed.token.access_token);
+      if (parsed.tokens && parsed.tokens.id_token) {
+        email = parseEmailFromJwt(parsed.tokens.id_token);
       }
+      authJsonStr = JSON.stringify(parsed, null, 2);
+      credType = "chatgpt_oauth";
+      if (parsed.tokens?.access_token) masked = maskCredential(parsed.tokens.access_token);
     } catch {
-      if (trimmedCred.startsWith("ya29.")) {
-        tokenJsonStr = JSON.stringify({
-          token: { access_token: trimmedCred, token_type: "Bearer" },
-          auth_method: "consumer"
-        });
-        credType = "bearer_token";
-      } else {
-        tokenJsonStr = JSON.stringify({
-          token: { access_token: trimmedCred, token_type: "Bearer" },
-          api_key: trimmedCred
-        });
-        credType = "api_key";
-      }
-    }
-
-    fs.writeFileSync(path.join(profileDir, "antigravity-oauth-token"), tokenJsonStr, { mode: 0o600 });
-    const baseAgy = DEFAULT_AGY_HOME;
-    try {
-      if (fs.existsSync(path.join(baseAgy, "bin"))) fs.symlinkSync(path.join(baseAgy, "bin"), path.join(profileDir, "bin"));
-      if (fs.existsSync(path.join(baseAgy, "builtin"))) fs.symlinkSync(path.join(baseAgy, "builtin"), path.join(profileDir, "builtin"));
-      if (fs.existsSync(path.join(baseAgy, "settings.json"))) fs.symlinkSync(path.join(baseAgy, "settings.json"), path.join(profileDir, "settings.json"));
-      if (fs.existsSync(path.join(baseAgy, "installation_id"))) fs.symlinkSync(path.join(baseAgy, "installation_id"), path.join(profileDir, "installation_id"));
-    } catch {}
-  } else if (engine === "codex") {
-    let authJsonStr = "";
-    if (trimmedCred.startsWith("sk-")) {
-      credType = "api_key";
       authJsonStr = JSON.stringify({
-        auth_mode: "api_key",
-        OPENAI_API_KEY: trimmedCred
+        auth_mode: "token",
+        tokens: { access_token: trimmedCred }
       }, null, 2);
-    } else {
-      try {
-        const parsed = JSON.parse(trimmedCred);
-        if (parsed.tokens && parsed.tokens.id_token) email = parseEmailFromJwt(parsed.tokens.id_token);
-        authJsonStr = JSON.stringify(parsed, null, 2);
-        credType = "chatgpt_oauth";
-      } catch {
-        authJsonStr = JSON.stringify({
-          auth_mode: "token",
-          tokens: { access_token: trimmedCred }
-        }, null, 2);
-        credType = "access_token";
-      }
+      credType = "access_token";
     }
-
-    fs.writeFileSync(path.join(profileDir, "auth.json"), authJsonStr, { mode: 0o600 });
-    try {
-      if (fs.existsSync(path.join(DEFAULT_CODEX_HOME, "config.toml"))) {
-        fs.copyFileSync(path.join(DEFAULT_CODEX_HOME, "config.toml"), path.join(profileDir, "config.toml"));
-      }
-    } catch {}
   }
 
-  const finalAlias = (alias && alias.trim()) || (email ? `Akun (${email})` : `Akun ${engine.toUpperCase()} Baru`);
+  fs.writeFileSync(path.join(profileDir, "auth.json"), authJsonStr, { mode: 0o600 });
+  try {
+    if (fs.existsSync(path.join(DEFAULT_CODEX_HOME, "config.toml"))) {
+      fs.copyFileSync(
+        path.join(DEFAULT_CODEX_HOME, "config.toml"),
+        path.join(profileDir, "config.toml")
+      );
+    }
+  } catch {}
+
+  const finalAlias =
+    (alias && alias.trim()) ||
+    (email ? `Akun ChatGPT (${email})` : "Akun OpenAI Codex Baru");
+
   const newProfile = {
     id: profileId,
-    engine,
+    engine: "codex",
     alias: finalAlias,
     email: email || "",
     type: credType,
@@ -469,9 +440,7 @@ function addAuthProfile({ engine, alias, credential, setAsActive }) {
   };
 
   authVault.profiles.push(newProfile);
-  if (setAsActive) {
-    authVault.active[engine] = profileId;
-  }
+  if (setAsActive) authVault.active.codex = profileId;
   saveAuthVault();
   broadcastSSE("auth_vault", getPublicAuthVault());
   return newProfile;
@@ -501,20 +470,8 @@ function deleteAuthProfile(profileId) {
   return { success: true };
 }
 
-// ===== REAL NATIVE AUTH HANDLERS (OpenAI Codex Device Auth & Google OAuth) =====
+// ===== REAL NATIVE AUTH HANDLERS (OpenAI Codex Device Auth) =====
 const pendingCodexLogins = new Map();
-const pendingGoogleLogins = new Map();
-
-let GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
-let GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
-const googleCredPath = path.join(AUTH_VAULT_DIR, "google_oauth_client.json");
-if ((!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) && fs.existsSync(googleCredPath)) {
-  try {
-    const credData = JSON.parse(fs.readFileSync(googleCredPath, "utf-8"));
-    GOOGLE_CLIENT_ID = GOOGLE_CLIENT_ID || credData.client_id || "";
-    GOOGLE_CLIENT_SECRET = GOOGLE_CLIENT_SECRET || credData.client_secret || "";
-  } catch (e) {}
-}
 
 // --- OpenAI Codex Native Device Auth ---
 function startCodexDeviceLogin(alias = "") {
@@ -693,172 +650,6 @@ function cancelCodexDeviceLogin(loginId) {
   return true;
 }
 
-// --- Google Antigravity Native OAuth ---
-function getGoogleRedirectUri(reqHost) {
-  const host = (reqHost || `localhost:${PORT}`).split(":")[0];
-  if (host === "127.0.0.1") {
-    return `http://127.0.0.1:${PORT}/oauth2callback`;
-  }
-  return `http://localhost:${PORT}/oauth2callback`;
-}
-
-function startGoogleOAuthLogin(alias = "", reqHost = "") {
-  const stateId = `gauth-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  const profileId = `agy-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  const profileDir = path.join(AUTH_VAULT_DIR, "antigravity", profileId);
-
-  try {
-    if (!fs.existsSync(profileDir)) fs.mkdirSync(profileDir, { recursive: true });
-  } catch (e) {
-    throw new Error("Gagal membuat direktori profil Google: " + e.message);
-  }
-
-  const redirectUri = getGoogleRedirectUri(reqHost);
-  const session = {
-    stateId,
-    profileId,
-    profileDir,
-    alias: alias.trim(),
-    redirectUri,
-    status: "waiting_approval",
-    email: null,
-    createdAt: Date.now()
-  };
-  pendingGoogleLogins.set(stateId, session);
-
-  // Auto clean pending sessions after 15 minutes
-  setTimeout(() => {
-    if (session.status === "waiting_approval") {
-      pendingGoogleLogins.delete(stateId);
-      try { fs.rmSync(profileDir, { recursive: true, force: true }); } catch {}
-    }
-  }, 15 * 60 * 1000);
-
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: redirectUri,
-    response_type: "code",
-    scope: "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid",
-    access_type: "offline",
-    prompt: "consent select_account",
-    state: stateId
-  }).toString();
-
-  return { authUrl, stateId, redirectUri };
-}
-
-async function exchangeGoogleAuthCode(code, sessionOrStateId, customRedirectUri = null) {
-  let session = typeof sessionOrStateId === "string" ? pendingGoogleLogins.get(sessionOrStateId) : sessionOrStateId;
-  if (!session) {
-    const stateId = `gauth-${Date.now()}`;
-    const profileId = `agy-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const profileDir = path.join(AUTH_VAULT_DIR, "antigravity", profileId);
-    fs.mkdirSync(profileDir, { recursive: true });
-    session = {
-      stateId,
-      profileId,
-      profileDir,
-      alias: "",
-      redirectUri: customRedirectUri || `http://localhost:${PORT}/oauth2callback`,
-      status: "exchanging",
-      createdAt: Date.now()
-    };
-    pendingGoogleLogins.set(stateId, session);
-  }
-
-  const redirectUri = customRedirectUri || session.redirectUri || `http://localhost:${PORT}/oauth2callback`;
-
-  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      grant_type: "authorization_code",
-      code: code.trim(),
-      redirect_uri: redirectUri
-    })
-  });
-
-  const tokenData = await tokenRes.json();
-  if (tokenData.error) {
-    session.status = "failed";
-    session.error = tokenData.error_description || tokenData.error;
-    throw new Error(session.error);
-  }
-
-  const email = parseEmailFromJwt(tokenData.id_token) || "";
-  session.email = email;
-
-  // 1. Write antigravity-oauth-token
-  const agyTokenContent = {
-    token: {
-      access_token: tokenData.access_token,
-      token_type: "Bearer",
-      refresh_token: tokenData.refresh_token,
-      expiry: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString()
-    },
-    auth_method: "consumer",
-    id_token: tokenData.id_token
-  };
-  fs.writeFileSync(
-    path.join(session.profileDir, "antigravity-oauth-token"),
-    JSON.stringify(agyTokenContent, null, 2),
-    { mode: 0o600 }
-  );
-
-  // 2. Write oauth_creds.json
-  const credsContent = {
-    access_token: tokenData.access_token,
-    refresh_token: tokenData.refresh_token,
-    scope: tokenData.scope || "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid",
-    token_type: "Bearer",
-    id_token: tokenData.id_token,
-    expiry_date: Date.now() + (tokenData.expires_in || 3600) * 1000
-  };
-  fs.writeFileSync(
-    path.join(session.profileDir, "oauth_creds.json"),
-    JSON.stringify(credsContent, null, 2),
-    { mode: 0o600 }
-  );
-
-  // 3. Symlink base CLI resources
-  const baseAgy = DEFAULT_AGY_HOME;
-  try {
-    if (fs.existsSync(path.join(baseAgy, "bin")) && !fs.existsSync(path.join(session.profileDir, "bin")))
-      fs.symlinkSync(path.join(baseAgy, "bin"), path.join(session.profileDir, "bin"));
-    if (fs.existsSync(path.join(baseAgy, "builtin")) && !fs.existsSync(path.join(session.profileDir, "builtin")))
-      fs.symlinkSync(path.join(baseAgy, "builtin"), path.join(session.profileDir, "builtin"));
-    if (fs.existsSync(path.join(baseAgy, "settings.json")) && !fs.existsSync(path.join(session.profileDir, "settings.json")))
-      fs.symlinkSync(path.join(baseAgy, "settings.json"), path.join(session.profileDir, "settings.json"));
-    if (fs.existsSync(path.join(baseAgy, "installation_id")) && !fs.existsSync(path.join(session.profileDir, "installation_id")))
-      fs.symlinkSync(path.join(baseAgy, "installation_id"), path.join(session.profileDir, "installation_id"));
-  } catch (err) {
-    console.warn("Symlink notice for Google profile:", err);
-  }
-
-  // 4. Save to vault
-  const finalAlias = session.alias || (email ? `Akun Google (${email})` : `Akun Google Gemini`);
-  const newProfile = {
-    id: session.profileId,
-    alias: finalAlias,
-    email: email,
-    type: "oauth_token",
-    masked: maskCredential(tokenData.access_token),
-    dir: session.profileDir,
-    createdAt: Date.now()
-  };
-
-  authVault.profiles.push(newProfile);
-  authVault.active.antigravity = session.profileId; // Set active profile
-  saveAuthVault();
-  broadcastSSE("auth_vault", getPublicAuthVault());
-
-  session.status = "success";
-  session.profile = newProfile;
-  console.log(`[Google Login] Berhasil login akun Google: ${email} (${session.profileId})`);
-  return newProfile;
-}
 
 initAuthVault();
 
@@ -973,8 +764,6 @@ if (WAKELOCK_DISABLED) {
 }
 
 const DEFAULT_MODELS = [
-  // --- Antigravity Engine Models ---
-
   // --- OpenAI Codex Engine Models ---
   { id: "codex/gpt-6.1-sol", name: "OpenAI Codex · GPT-6.1 Sol (Default & Super Cerdas)", engine: "codex", group: "OpenAI Codex Models" },
   { id: "codex/gpt-6-astra", name: "OpenAI Codex · GPT-6 Astra (Flagship)", engine: "codex", group: "OpenAI Codex Models" },
@@ -1561,11 +1350,6 @@ ${keyDirectives.slice(-8).join("\n") || "- Percakapan berjalan produktif sesuai 
 const activeChildProcesses = new Set();
 let aiToAiJapriCount = 0;
 
-function executeAgyCli() {
-  return Promise.reject(new Error(
-    "Integrasi Antigravity dinonaktifkan. Google Terms saat ini melarang akses Service melalui produk pihak ketiga. Gunakan terminal umum secara manual atau pilih Codex/OpenCode."
-  ));
-}
 
 function executeOpencodeCli(model, prompt, speaker = "A", currentChatId = "group") {
   return new Promise((resolve, reject) => {
@@ -1807,8 +1591,6 @@ async function callAgent(preferredModel, prompt, speaker = "A", currentChatId = 
   }
 }
 
-// Alias callAgy to callAgent so any calls to callAgy continue to work
-const callAgy = callAgent;
 
 // Handle auto file sending tag from AI: [KIRIM_FILE: filename caption] or mentioned files in workspace
 function processFileTags(cleanText, workspaceDir, isA, speakerName, model, chatId) {
@@ -2103,7 +1885,7 @@ Tulis 1 pesan tanggapanmu (2-4 kalimat) di grup WhatsApp ini. Bicaralah wajar da
   setTyping(speakerName, "group");
 
   try {
-    const response = await callAgy(model, prompt, speaker, "group");
+    const response = await callAgent(model, prompt, speaker, "group");
     setTyping(null, "group");
 
     let cleanText = stripAnsi(response);
@@ -2207,7 +1989,7 @@ Tulis 1 pesan balasan japri (1-3 kalimat) kepada Boss Bayu secara responsif, waj
   setTyping(speakerName, targetChatId);
 
   try {
-    const response = await callAgy(model, prompt, speaker, targetChatId);
+    const response = await callAgent(model, prompt, speaker, targetChatId);
     setTyping(null, targetChatId);
 
     let cleanText = stripAnsi(response);
@@ -2293,7 +2075,7 @@ Tulis balasan untuk ${otherName} di jalur backend:`;
   broadcastSSE("status", getPublicStatus());
 
   try {
-    const response = await callAgy(model, prompt, speaker, "internal_peer");
+    const response = await callAgent(model, prompt, speaker, "internal_peer");
     let cleanText = stripAnsi(response);
     cleanText = cleanText.replace(new RegExp(`^(\\*\\*|\\*)?${speakerName}(\\*\\*|\\*)?\\s*:\\s*`, "i"), "").trim();
     if (!cleanText) cleanText = "...";
@@ -2360,7 +2142,7 @@ Jawab langsung melalui suara telepon dengan 1-2 kalimat lisan pendek, natural, s
 DILARANG menggunakan bullet points, markdown bold (*), emotikon berlebihan, atau format koding karena jawabanmu akan disuarakan langsung oleh Speech Synthesizer telepon! Langsung tuliskan ucapanmu.`;
 
   try {
-    const response = await callAgy(model, prompt, speaker);
+    const response = await callAgent(model, prompt, speaker);
     let cleanText = stripAnsi(response).trim();
     cleanText = cleanText.replace(new RegExp(`^(\\*\\*|\\*)?${speakerName}(\\*\\*|\\*)?\\s*:\\s*`, "i"), "").trim();
     cleanText = cleanText.replace(/[*#`_~\[\]]/g, "").trim();
@@ -2389,7 +2171,7 @@ Sebagai anggota tim yang melihat status Pak Boss di timeline WhatsApp, kirimkan 
 Langsung tuliskan isi pesanmu tanpa awalan nama.`;
 
   try {
-    const response = await callAgy(model, prompt, speaker);
+    const response = await callAgent(model, prompt, speaker);
     let cleanText = stripAnsi(response).trim();
     cleanText = cleanText.replace(new RegExp(`^(\\*\\*|\\*)?${speakerName}(\\*\\*|\\*)?\\s*:\\s*`, "i"), "").trim();
     if (cleanText) {
@@ -3385,150 +3167,6 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // --- Real Native Auth Endpoints (Google Gemini OAuth) ---
-  if (url.pathname === "/api/auth/google/start-login" && req.method === "POST") {
-    let body = "";
-    req.on("data", (chunk) => (body += chunk));
-    req.on("end", () => {
-      try {
-        const data = JSON.parse(body || "{}");
-        const result = startGoogleOAuthLogin(data.alias || "", req.headers.host || "");
-        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ success: true, ...result }));
-      } catch (err) {
-        res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: err.message }));
-      }
-    });
-    return;
-  }
-
-  if (url.pathname === "/oauth2callback" && req.method === "GET") {
-    const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
-    const errorParam = url.searchParams.get("error");
-
-    if (errorParam || !code) {
-      const errMsg = errorParam || "Tidak ada kode otorisasi dari Google.";
-      res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(`
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="utf-8"><title>Gagal Login Google</title></head>
-        <body style="background:#111b21;color:#ff5252;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
-          <div style="background:#202c33;padding:32px;border-radius:12px;text-align:center;max-width:400px;border:1px solid #ff5252;">
-            <h2>❌ Otorisasi Dibatalkan</h2>
-            <p style="color:#8696a0;">${errMsg}</p>
-            <p style="color:#8696a0;font-size:12px;">Anda dapat menutup jendela ini.</p>
-          </div>
-        </body>
-        </html>
-      `);
-      return;
-    }
-
-    exchangeGoogleAuthCode(code, state)
-      .then((profile) => {
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(`
-          <!DOCTYPE html>
-          <html lang="id">
-          <head>
-            <meta charset="utf-8">
-            <title>Login Google Berhasil</title>
-            <style>
-              body { background: #111b21; color: #e9edef; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-              .card { background: #202c33; border: 1px solid #00a884; border-radius: 12px; padding: 32px 40px; text-align: center; max-width: 440px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
-              h2 { color: #00a884; margin-top: 0; font-size: 20px; }
-              p { font-size: 14px; color: #8696a0; line-height: 1.5; }
-              .email { color: #e9edef; font-weight: 600; }
-            </style>
-          </head>
-          <body>
-            <div class="card">
-              <h2>✅ Login Google Berhasil!</h2>
-              <p>Akun <span class="email">${profile.email || "Google"}</span> telah terhubung ke Multi-Profile Vault dan langsung aktif untuk kuota Gemini Pro / Ultra.</p>
-              <p style="font-size: 12px; color: #8696a0;">Jendela ini akan menutup otomatis dalam beberapa detik...</p>
-            </div>
-            <script>
-              try {
-                if (window.opener) {
-                  window.opener.postMessage({ type: "google_login_success", state: "${state}", email: "${profile.email || ''}" }, "*");
-                }
-              } catch (e) {}
-              setTimeout(() => {
-                try { window.close(); } catch (e) {}
-              }, 1800);
-            </script>
-          </body>
-          </html>
-        `);
-      })
-      .catch((e) => {
-        res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(`
-          <!DOCTYPE html>
-          <html>
-          <head><meta charset="utf-8"><title>Gagal Tukar Kode Token</title></head>
-          <body style="background:#111b21;color:#ff5252;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
-            <div style="background:#202c33;padding:32px;border-radius:12px;text-align:center;max-width:400px;border:1px solid #ff5252;">
-              <h2>❌ Gagal Tukar Token</h2>
-              <p style="color:#8696a0;">${e.message}</p>
-            </div>
-          </body>
-          </html>
-        `);
-      });
-    return;
-  }
-
-  if (url.pathname === "/api/auth/google/check-login" && req.method === "GET") {
-    const stateId = url.searchParams.get("stateId");
-    const session = pendingGoogleLogins.get(stateId);
-    if (!session) {
-      res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ error: "Sesi Google login tidak ditemukan atau kedaluwarsa" }));
-      return;
-    }
-    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-    res.end(JSON.stringify({
-      status: session.status,
-      email: session.email,
-      profile: session.profile,
-      error: session.error
-    }));
-    return;
-  }
-
-  if (url.pathname === "/api/auth/google/exchange-code" && req.method === "POST") {
-    let body = "";
-    req.on("data", (chunk) => (body += chunk));
-    req.on("end", async () => {
-      try {
-        const data = JSON.parse(body || "{}");
-        let rawCode = (data.code || "").trim();
-        if (!rawCode) {
-          res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-          res.end(JSON.stringify({ error: "Kode atau URL otorisasi tidak boleh kosong" }));
-          return;
-        }
-        if (rawCode.includes("code=")) {
-          try {
-            const parsed = new URL(rawCode.startsWith("http") ? rawCode : ("http://localhost?" + rawCode));
-            rawCode = parsed.searchParams.get("code") || rawCode;
-          } catch {}
-        }
-        const profile = await exchangeGoogleAuthCode(rawCode, data.stateId || null, data.redirectUri || null);
-        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ success: true, profile, vault: getPublicAuthVault() }));
-      } catch (err) {
-        res.writeHead(400, { "Content-Type": "application/json; charset=utf-8" });
-        res.end(JSON.stringify({ error: err.message }));
-      }
-    });
-    return;
-  }
-
   // Bind specific auth profile to persona (Budi / Rian)
   if (url.pathname === "/api/auth/bind-persona" && req.method === "POST") {
     let body = "";
@@ -3536,7 +3174,8 @@ const server = http.createServer((req, res) => {
     req.on("end", () => {
       try {
         const data = JSON.parse(body || "{}");
-        const { persona, engine, profileId } = data; // persona: 'budi'|'rian', engine: 'antigravity'|'codex', profileId: string|null
+        const { persona, engine, profileId } = data; // persona: 'budi'|'rian', engine: 'codex', profileId: string|null
+        if (engine !== "codex") throw new Error("Hanya binding profil Codex yang didukung.");
         if (!authVault.personaBinding) authVault.personaBinding = { budi: {}, rian: {} };
         if (!authVault.personaBinding[persona]) authVault.personaBinding[persona] = {};
         if (profileId) {
@@ -3696,7 +3335,7 @@ ${groupRecent}
 
 Tulis 1 pesan inisiatif japri (1-2 kalimat) yang ramah dan solutif ke Boss Bayu. Langsung tulis pesanmu.`;
 
-        const resp = await callAgy(model, prompt, speaker);
+        const resp = await callAgent(model, prompt, speaker);
         let cleanText = stripAnsi(resp).trim().replace(new RegExp(`^(\\*\\*|\\*)?${speakerName}(\\*\\*|\\*)?\\s*:\\s*`, "i"), "").trim();
         if (cleanText) {
           addChatMessage({
