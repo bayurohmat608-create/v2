@@ -190,7 +190,9 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            set -euo pipefail
+            # android-emulator-runner executes this command through /bin/sh.
+            # POSIX sh has no pipefail; using it aborted CI before app startup.
+            set -eu
             APK="$(find runtime-apk -type f -name '*.apk' | head -1)"
             test -f "$APK"
             adb install -r "$APK"
