@@ -14,6 +14,16 @@ val nodeMobileUrl = "https://github.com/digidem/nodejs-mobile/releases/download/
 val nodeMobileRoot = layout.buildDirectory.dir("node-mobile")
 val nodeMobileZip = layout.buildDirectory.file("downloads/nodejs-mobile-android-$nodeMobileVersion.zip")
 
+val supportedRuntimeAbis = mapOf(
+    "arm64-v8a" to "aarch64",
+    "x86_64" to "x86_64"
+)
+val runtimeAbi = providers.gradleProperty("runtimeAbi").orElse("arm64-v8a").get()
+require(runtimeAbi in supportedRuntimeAbis) {
+    "Unsupported runtimeAbi=$runtimeAbi. Supported: ${supportedRuntimeAbis.keys.joinToString()}"
+}
+val runtimeArch = supportedRuntimeAbis.getValue(runtimeAbi)
+
 val alpineVersion = "3.24.2"
 val alpineRootfsSha256 = mapOf(
     "aarch64" to "9bf70a7f18ea44094cbb5f70c58f9af129c8214745743db0e68e5502cc2ce773",
@@ -147,14 +157,17 @@ val prepareNodeMobile by tasks.registering {
 
 val prepareAlpineRootfs by tasks.registering {
     inputs.property("alpineVersion", alpineVersion)
-    inputs.properties(alpineRootfsSha256)
+    inputs.property("runtimeAbi", runtimeAbi)
+    inputs.property("runtimeArch", runtimeArch)
+    inputs.property("alpineRootfsSha256", alpineRootfsSha256.getValue(runtimeArch))
     outputs.dir(alpineRootfsDir)
 
     doLast {
         val targetDir = alpineRootfsDir.get().asFile
+        targetDir.deleteRecursively()
         targetDir.mkdirs()
 
-        alpineRootfsSha256.forEach { (arch, expectedSha) ->
+        mapOf(runtimeArch to alpineRootfsSha256.getValue(runtimeArch)).forEach { (arch, expectedSha) ->
             val remoteFilename = "alpine-minirootfs-$alpineVersion-$arch.tar.gz"
             val assetFilename = "alpine-minirootfs-$alpineVersion-$arch.tgz"
             val output = File(targetDir, assetFilename)
@@ -176,16 +189,19 @@ val prepareAlpineRootfs by tasks.registering {
 }
 
 val prepareAndroidEngines by tasks.registering {
-    inputs.property("engineArtifacts", androidEngineArtifacts.joinToString("|") {
+    val selectedArtifacts = androidEngineArtifacts.filter { it.arch == runtimeArch }
+    inputs.property("runtimeAbi", runtimeAbi)
+    inputs.property("engineArtifacts", selectedArtifacts.joinToString("|") {
         "${it.arch}:${it.filename}:${it.sha512}"
     })
     outputs.dir(androidEngineDir)
 
     doLast {
         val targetRoot = androidEngineDir.get().asFile
+        targetRoot.deleteRecursively()
         targetRoot.mkdirs()
 
-        androidEngineArtifacts.forEach { artifact ->
+        selectedArtifacts.forEach { artifact ->
             val archDir = File(targetRoot, artifact.arch).apply { mkdirs() }
             val output = File(archDir, artifact.filename)
 
@@ -248,7 +264,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
-            abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
+            abiFilters.add(runtimeAbi)
         }
 
         externalNativeBuild {
