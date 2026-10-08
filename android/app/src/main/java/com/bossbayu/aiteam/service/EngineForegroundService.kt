@@ -121,37 +121,43 @@ class EngineForegroundService : Service() {
                 workstationManager.ensureWorkstationsReady()
                 if (stopRequested) return@launch
 
-                val enginesReady = workstationManager.ensureEnginePackReady { status ->
-                    if (!stopRequested) updateNotification(status)
-                }
-                if (stopRequested) return@launch
-
-                val depsReady = if (enginesReady) {
-                    updateNotification("Menyiapkan dependency engine Linux...")
-                    workstationManager.provisionEngineDependencies(prootManager)
-                } else {
-                    false
-                }
-                if (stopRequested) return@launch
-
-                if (!enginesReady) {
-                    Log.w(TAG, "Engine pack belum siap; backend tetap start dalam mode degraded.")
-                } else if (!depsReady) {
-                    Log.w(TAG, "Engine dependencies belum lengkap; backend expose degraded health.")
-                }
-
+                // Bring the local backend/UI online before large AI-engine downloads.
+                // Engine health may be degraded briefly, but the app remains responsive.
                 updateNotification("Memulai embedded Node.js...")
                 val port = nodeRuntimeManager.startServer()
                 if (stopRequested) {
                     nodeRuntimeManager.stopServer()
                     return@launch
                 }
+                updateNotification("Server lokal aktif · menyiapkan engine AI...")
+
+                val enginesReady = workstationManager.ensureEnginePackReady { status ->
+                    if (!stopRequested) {
+                        updateNotification("Server aktif · $status")
+                    }
+                }
+                if (stopRequested) return@launch
+
+                val depsReady = if (enginesReady) {
+                    updateNotification("Server aktif · menyiapkan dependency engine...")
+                    workstationManager.provisionEngineDependencies(prootManager)
+                } else {
+                    false
+                }
+                if (stopRequested) return@launch
 
                 val suffix = when {
                     !enginesReady -> " · engine perlu diunduh ulang"
                     !depsReady -> " · dependency engine perlu retry"
-                    else -> ""
+                    else -> " · engine siap"
                 }
+
+                if (!enginesReady) {
+                    Log.w(TAG, "Engine pack belum siap; backend tetap hidup dalam mode degraded.")
+                } else if (!depsReady) {
+                    Log.w(TAG, "Engine dependencies belum lengkap; backend tetap hidup dalam mode degraded.")
+                }
+
                 updateNotification("Server lokal aktif di 127.0.0.1:$port$suffix")
             } catch (e: Exception) {
                 if (!stopRequested) {
