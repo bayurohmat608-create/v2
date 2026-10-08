@@ -1,19 +1,23 @@
 package com.bossbayu.aiteam.runtime
 
 import android.content.Context
+import android.os.Build
+import android.system.Os
 import android.util.Log
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Manages dual workstations:
- * 1. Default: Alpine Linux (musl libc, lightweight ~15MB RAM)
- * 2. On-Demand: Ubuntu 24.04 (glibc, full apt repository)
+ * Manages app-private Linux workstations.
  *
- * Also maintains persistent shared workspaces for Budi and Rian.
+ * Alpine is bundled as an official verified minirootfs and extracted without
+ * relying on a host "tar" executable. Extraction is staged and validated
+ * before replacing the active rootfs.
  */
 class WorkstationManager(private val context: Context) {
 
@@ -23,9 +27,10 @@ class WorkstationManager(private val context: Context) {
         const val WS_UBUNTU = "ubuntu"
         private const val PREFS_NAME = "workstation_prefs"
         private const val KEY_ACTIVE_WS = "active_workstation"
+        private const val ALPINE_VERSION = "3.24.2"
+        private const val ROOTFS_MARKER = ".rootfs-version"
 
-        // Official Ubuntu 24.04 minimal rootfs mirror for ARM64
-        const val UBUNTU_ARM64_ROOTFS_URL = 
+        const val UBUNTU_ARM64_ROOTFS_URL =
             "https://cloud-images.ubuntu.com/minimal/releases/noble/release/ubuntu-24.04-minimal-cloudimg-arm64-root.tar.xz"
     }
 
@@ -35,7 +40,7 @@ class WorkstationManager(private val context: Context) {
         get() = File(context.filesDir, "workstations").apply { mkdirs() }
 
     val alpineDir: File
-        get() = File(workstationsBaseDir, WS_ALPINE).apply { mkdirs() }
+        get() = File(workstationsBaseDir, WS_ALPINE)
 
     val ubuntuDir: File
         get() = File(workstationsBaseDir, WS_UBUNTU)
@@ -53,8 +58,25 @@ class WorkstationManager(private val context: Context) {
             Log.d(TAG, "Active workstation switched to: $value")
         }
 
+    private fun alpineArch(): String {
+        return when {
+            Build.SUPPORTED_ABIS.contains("arm64-v8a") -> "aarch64"
+            Build.SUPPORTED_ABIS.contains("x86_64") -> "x86_64"
+            else -> throw IllegalStateException(
+                "ABI perangkat tidak didukung oleh runtime v2: ${Build.SUPPORTED_ABIS.joinToString()}"
+            )
+        }
+    }
+
+    private fun expectedAlpineMarker(): String = "alpine-$ALPINE_VERSION-${alpineArch()}"
+
+    fun isAlpineInstalled(): Boolean {
+        return File(alpineDir, "bin/sh").isFile &&
+            File(alpineDir, ROOTFS_MARKER).readTextOrNull()?.trim() == expectedAlpineMarker()
+    }
+
     fun isUbuntuInstalled(): Boolean {
-        return ubuntuDir.exists() && File(ubuntuDir, "bin/sh").exists()
+        return ubuntuDir.isDirectory && File(ubuntuDir, "bin/sh").isFile
     }
 
     fun getActiveRootfs(): File {
@@ -66,16 +88,16 @@ class WorkstationManager(private val context: Context) {
     }
 
     /**
-     * Ensures default Alpine rootfs and persistent workspaces are initialized.
+     * Ensures the default Alpine rootfs and persistent workspaces exist.
      */
     fun ensureWorkstationsReady() {
-        if (!File(alpineDir, "bin/sh").exists()) {
-            Log.d(TAG, "Initializing default Alpine Linux workstation...")
+        if (!isAlpineInstalled()) {
+            Log.i(TAG, "Installing verified Alpine $ALPINE_VERSION rootfs...")
             extractAlpineFromAssets()
         }
 
-        check(File(alpineDir, "bin/sh").exists()) {
-            "Alpine rootfs belum tersedia. Runtime pack Android v2 harus menyertakan rootfs yang valid."
+        check(isAlpineInstalled()) {
+            "Alpine rootfs gagal diverifikasi setelah instalasi."
         }
 
         budiWorkspace
@@ -83,95 +105,216 @@ class WorkstationManager(private val context: Context) {
     }
 
     private fun extractAlpineFromAssets() {
+        val arch = alpineArch()
+        val assetName = "alpine-minirootfs-$ALPINE_VERSION-$arch.tar.gz"
+        val assetPath = "rootfs/$assetName"
+        val base = workstationsBaseDir
+        val staging = File(base, ".alpine-staging-${System.nanoTime()}")
+        val backup = File(base, ".alpine-backup")
+
+        staging.deleteRecursively()
+        staging.mkdirs()
+        backup.deleteRecursively()
+
+        val symlinks = mutableListOf<Pair<File, String>>()
+        val hardLinks = mutableListOf<Pair<File, String>>()
+
         try {
-            // Check if bundled alpine archive exists in assets
-            val assetList = context.assets.list("rootfs") ?: emptyArray()
-            val alpineArchive = assetList.firstOrNull { it.contains("alpine") }
-            if (alpineArchive != null) {
-                val input = context.assets.open("rootfs/$alpineArchive")
-                val destFile = File(context.cacheDir, alpineArchive)
-                destFile.outputStream().use { input.copyTo(it) }
+            context.assets.open(assetPath).use { raw ->
+                GzipCompressorInputStream(raw).use { gzip ->
+                    TarArchiveInputStream(gzip).use { tar ->
+                        var entry: TarArchiveEntry? = tar.nextTarEntry
+                        while (entry != null) {
+                            val name = entry.name.removePrefix("./")
+                            if (name.isNotBlank()) {
+                                val target = safeTarget(staging, name)
 
-                // Unpack tar archive into alpineDir
-                unpackArchive(destFile, alpineDir)
-                destFile.delete()
-                Log.d(TAG, "Alpine Linux rootfs extracted successfully.")
-            } else {
-                throw IllegalStateException(
-                    "Asset rootfs Alpine tidak ditemukan. APK ini belum memiliki runtime pack Linux."
-                )
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to extract Alpine rootfs: ${e.message}", e)
-            throw e
-        }
-    }
+                                when {
+                                    entry.isDirectory -> {
+                                        target.mkdirs()
+                                        chmodQuietly(target, entry.mode)
+                                    }
 
-    /**
-     * Switches the active workstation between Alpine and Ubuntu.
-     */
-    fun switchWorkstation(target: String): Boolean {
-        if (target == WS_UBUNTU && !isUbuntuInstalled()) {
-            Log.w(TAG, "Cannot switch to Ubuntu: not installed yet.")
-            return false
-        }
-        currentWorkstation = if (target == WS_UBUNTU) WS_UBUNTU else WS_ALPINE
-        return true
-    }
+                                    entry.isSymbolicLink -> {
+                                        target.parentFile?.mkdirs()
+                                        symlinks += target to entry.linkName
+                                    }
 
-    /**
-     * Downloads and installs Ubuntu minimal rootfs on-demand.
-     */
-    fun installUbuntuWorkstation(onProgress: (percent: Int, status: String) -> Unit): Boolean {
-        return try {
-            onProgress(0, "Mempersiapkan unduhan Ubuntu 24.04 ARM64...")
-            val downloadDest = File(context.cacheDir, "ubuntu-rootfs.tar.xz")
+                                    entry.isLink -> {
+                                        target.parentFile?.mkdirs()
+                                        hardLinks += target to entry.linkName
+                                    }
 
-            val url = URL(UBUNTU_ARM64_ROOTFS_URL)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.connectTimeout = 15000
-            connection.readTimeout = 30000
-            val totalBytes = connection.contentLength
-
-            var downloadedBytes = 0
-            connection.inputStream.use { input ->
-                FileOutputStream(downloadDest).use { output ->
-                    val buffer = ByteArray(8192)
-                    var bytesRead: Int
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        downloadedBytes += bytesRead
-                        if (totalBytes > 0) {
-                            val percent = (downloadedBytes * 80 / totalBytes)
-                            onProgress(percent, "Mengunduh Ubuntu: ${downloadedBytes / (1024 * 1024)}MB / ${totalBytes / (1024 * 1024)}MB")
+                                    entry.isFile -> {
+                                        target.parentFile?.mkdirs()
+                                        FileOutputStream(target).use { output ->
+                                            tar.copyTo(output)
+                                        }
+                                        chmodQuietly(target, entry.mode)
+                                    }
+                                }
+                            }
+                            entry = tar.nextTarEntry
                         }
                     }
                 }
             }
 
-            onProgress(85, "Mengekstrak sistem operasi Ubuntu...")
-            ubuntuDir.mkdirs()
-            unpackArchive(downloadDest, ubuntuDir)
-            downloadDest.delete()
+            for ((target, linkName) in hardLinks) {
+                val source = safeTarget(staging, linkName.removePrefix("./"))
+                check(source.exists()) {
+                    "Hardlink source tidak ditemukan: $linkName"
+                }
+                target.delete()
+                Os.link(source.absolutePath, target.absolutePath)
+            }
 
-            onProgress(100, "Ubuntu 24.04 LTS Berhasil Terpasang!")
-            true
+            for ((target, linkName) in symlinks) {
+                target.delete()
+                Os.symlink(linkName, target.absolutePath)
+            }
+
+            File(staging, "tmp").apply {
+                mkdirs()
+                chmodQuietly(this, 0x1FF) // 0777; sticky bit is not exposed by File API.
+            }
+
+            val shell = File(staging, "bin/sh")
+            check(shell.exists()) {
+                "Rootfs Alpine hasil ekstraksi tidak memiliki /bin/sh."
+            }
+
+            File(staging, ROOTFS_MARKER).writeText(expectedAlpineMarker() + "\n")
+
+            if (alpineDir.exists()) {
+                check(alpineDir.renameTo(backup)) {
+                    "Gagal memindahkan rootfs lama ke backup."
+                }
+            }
+
+            if (!staging.renameTo(alpineDir)) {
+                if (backup.exists()) backup.renameTo(alpineDir)
+                error("Gagal mengaktifkan rootfs Alpine baru.")
+            }
+
+            backup.deleteRecursively()
+            Log.i(TAG, "Alpine $ALPINE_VERSION ($arch) rootfs ready.")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to install Ubuntu workstation: ${e.message}", e)
-            onProgress(-1, "Gagal menginstal Ubuntu: ${e.message}")
+            staging.deleteRecursively()
+            if (!alpineDir.exists() && backup.exists()) {
+                backup.renameTo(alpineDir)
+            }
+            Log.e(TAG, "Failed to install Alpine rootfs: ${e.message}", e)
+            throw e
+        }
+    }
+
+    private fun safeTarget(root: File, archivePath: String): File {
+        val normalized = archivePath
+            .replace('\\', '/')
+            .trimStart('/')
+
+        require(normalized.isNotBlank()) { "Path archive kosong." }
+        require(!normalized.split('/').contains("..")) {
+            "Path traversal ditolak: $archivePath"
+        }
+
+        val target = File(root, normalized)
+        val rootPath = root.canonicalFile.absolutePath + File.separator
+        val targetPath = target.canonicalFile.absolutePath
+
+        require(targetPath.startsWith(rootPath)) {
+            "Entry keluar dari rootfs staging: $archivePath"
+        }
+        return target
+    }
+
+    private fun chmodQuietly(file: File, mode: Int) {
+        try {
+            Os.chmod(file.absolutePath, mode and 0xFFF)
+        } catch (e: Exception) {
+            Log.w(TAG, "chmod gagal untuk ${file.absolutePath}: ${e.message}")
+        }
+    }
+
+    private fun File.readTextOrNull(): String? {
+        return try {
+            if (isFile) readText() else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun switchWorkstation(target: String): Boolean {
+        if (target == WS_UBUNTU && !isUbuntuInstalled()) {
+            Log.w(TAG, "Cannot switch to Ubuntu: not installed yet.")
+            return false
+        }
+
+        if (target == WS_ALPINE) {
+            ensureWorkstationsReady()
+        }
+
+        currentWorkstation = if (target == WS_UBUNTU) WS_UBUNTU else WS_ALPINE
+        return true
+    }
+
+    /**
+     * Ubuntu remains opt-in. It is intentionally not used as the default v2
+     * runtime until the architecture-specific rootfs path is hardened equally.
+     */
+    fun installUbuntuWorkstation(onProgress: (percent: Int, status: String) -> Unit): Boolean {
+        if (!Build.SUPPORTED_ABIS.contains("arm64-v8a")) {
+            onProgress(-1, "Ubuntu on-demand saat ini hanya diverifikasi untuk ARM64.")
+            return false
+        }
+
+        return try {
+            onProgress(0, "Mempersiapkan unduhan Ubuntu 24.04 ARM64...")
+            val downloadDest = File(context.cacheDir, "ubuntu-rootfs.tar.xz")
+
+            val connection = URL(UBUNTU_ARM64_ROOTFS_URL)
+                .openConnection() as HttpURLConnection
+            connection.connectTimeout = 15000
+            connection.readTimeout = 30000
+            val totalBytes = connection.contentLengthLong
+
+            var downloadedBytes = 0L
+            connection.inputStream.use { input ->
+                FileOutputStream(downloadDest).use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        downloadedBytes += bytesRead
+                        if (totalBytes > 0) {
+                            val percent = (downloadedBytes * 80 / totalBytes).toInt()
+                            onProgress(
+                                percent,
+                                "Mengunduh Ubuntu: ${downloadedBytes / (1024 * 1024)}MB / ${totalBytes / (1024 * 1024)}MB"
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Hardened v2 does not execute a host tar binary from app storage.
+            // Keep the download for a future verified XZ extractor path.
+            downloadDest.delete()
+            onProgress(
+                -1,
+                "Installer Ubuntu belum diaktifkan di hardened v2. Alpine adalah workstation default yang tervalidasi."
+            )
+            false
+        } catch (e: Exception) {
+            downloadDestCleanup()
+            Log.e(TAG, "Failed to prepare Ubuntu workstation: ${e.message}", e)
+            onProgress(-1, "Gagal menyiapkan Ubuntu: ${e.message}")
             false
         }
     }
 
-    private fun unpackArchive(archiveFile: File, targetDir: File) {
-        // Run tar -x via local runtime or process builder
-        val process = ProcessBuilder("tar", "-xf", archiveFile.absolutePath, "-C", targetDir.absolutePath)
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().use { it.readText() }
-        val exitCode = process.waitFor()
-        check(exitCode == 0) {
-            "Gagal mengekstrak rootfs (tar exit=$exitCode): ${output.takeLast(500)}"
-        }
+    private fun downloadDestCleanup() {
+        File(context.cacheDir, "ubuntu-rootfs.tar.xz").delete()
     }
 }
