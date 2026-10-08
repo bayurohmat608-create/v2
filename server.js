@@ -109,9 +109,6 @@ function buildEngineLaunch(command, args = [], options = {}) {
   };
 
   if (env.CODEX_HOME) guestEnv.CODEX_HOME = toAndroidGuestPath(env.CODEX_HOME);
-  if (env.ANTIGRAVITY_APP_DATA_DIR) {
-    guestEnv.ANTIGRAVITY_APP_DATA_DIR = toAndroidGuestPath(env.ANTIGRAVITY_APP_DATA_DIR);
-  }
   if (env.GODEBUG) guestEnv.GODEBUG = env.GODEBUG;
 
   const guestEnvArgs = Object.entries(guestEnv).map(([key, value]) => `${key}=${value}`);
@@ -215,7 +212,6 @@ const AUTH_VAULT_FILE = path.join(AUTH_VAULT_DIR, "vault.json");
 
 let authVault = {
   active: {
-    antigravity: "agy-default",
     codex: "codex-default"
   },
   profiles: []
@@ -252,47 +248,30 @@ function maskCredential(str) {
 function initAuthVault() {
   try {
     if (!fs.existsSync(AUTH_VAULT_DIR)) fs.mkdirSync(AUTH_VAULT_DIR, { recursive: true });
-    const agyVaultDir = path.join(AUTH_VAULT_DIR, "antigravity");
     const codexVaultDir = path.join(AUTH_VAULT_DIR, "codex");
-    if (!fs.existsSync(agyVaultDir)) fs.mkdirSync(agyVaultDir, { recursive: true });
     if (!fs.existsSync(codexVaultDir)) fs.mkdirSync(codexVaultDir, { recursive: true });
 
+    let loaded = null;
     if (fs.existsSync(AUTH_VAULT_FILE)) {
-      authVault = JSON.parse(fs.readFileSync(AUTH_VAULT_FILE, "utf-8"));
-    } else {
-      const defaultProfiles = [];
+      loaded = JSON.parse(fs.readFileSync(AUTH_VAULT_FILE, "utf-8"));
+    }
 
-      // Seed Antigravity default profile
-      const defaultAgyTokenPath = path.join(DEFAULT_AGY_HOME, "antigravity-oauth-token");
-      let agyEmail = "Akun Utama Antigravity";
-      if (fs.existsSync(defaultAgyTokenPath)) {
-        try {
-          const tData = JSON.parse(fs.readFileSync(defaultAgyTokenPath, "utf-8"));
-          const extractedEmail = parseEmailFromJwt(tData.id_token);
-          if (extractedEmail) agyEmail = extractedEmail;
-        } catch {}
-      }
-      defaultProfiles.push({
-        id: "agy-default",
-        alias: `Akun Google Utama (${agyEmail})`,
-        email: agyEmail,
-        type: "oauth_token",
-        masked: "ya29...default",
-        dir: DEFAULT_AGY_HOME,
-        createdAt: Date.now()
-      });
+    const defaultCodexAuthPath = path.join(DEFAULT_CODEX_HOME, "auth.json");
+    let codexEmail = "Akun Utama Codex";
+    if (fs.existsSync(defaultCodexAuthPath)) {
+      try {
+        const cData = JSON.parse(fs.readFileSync(defaultCodexAuthPath, "utf-8"));
+        const extractedEmail = parseEmailFromJwt(cData.tokens && cData.tokens.id_token);
+        if (extractedEmail) codexEmail = extractedEmail;
+      } catch {}
+    }
 
-      // Seed Codex default profile
-      const defaultCodexAuthPath = path.join(DEFAULT_CODEX_HOME, "auth.json");
-      let codexEmail = "Akun Utama Codex";
-      if (fs.existsSync(defaultCodexAuthPath)) {
-        try {
-          const cData = JSON.parse(fs.readFileSync(defaultCodexAuthPath, "utf-8"));
-          const extractedEmail = parseEmailFromJwt(cData.tokens && cData.tokens.id_token);
-          if (extractedEmail) codexEmail = extractedEmail;
-        } catch {}
-      }
-      defaultProfiles.push({
+    const codexProfiles = Array.isArray(loaded?.profiles)
+      ? loaded.profiles.filter(p => p && p.engine === "codex")
+      : [];
+
+    if (!codexProfiles.some(p => p.id === "codex-default")) {
+      codexProfiles.unshift({
         id: "codex-default",
         engine: "codex",
         alias: `Akun ChatGPT Utama (${codexEmail})`,
@@ -302,16 +281,37 @@ function initAuthVault() {
         dir: DEFAULT_CODEX_HOME,
         createdAt: Date.now()
       });
-
-      authVault = {
-        active: {
-          antigravity: "agy-default",
-          codex: "codex-default"
-        },
-        profiles: defaultProfiles
-      };
-      saveAuthVault();
     }
+
+    const validIds = new Set(codexProfiles.map(p => p.id));
+    const requestedActive = loaded?.active?.codex;
+    const activeCodex = validIds.has(requestedActive) ? requestedActive : "codex-default";
+
+    authVault = {
+      active: { codex: activeCodex },
+      personaBinding: {
+        budi: {
+          codex: validIds.has(loaded?.personaBinding?.budi?.codex)
+            ? loaded.personaBinding.budi.codex
+            : null
+        },
+        rian: {
+          codex: validIds.has(loaded?.personaBinding?.rian?.codex)
+            ? loaded.personaBinding.rian.codex
+            : null
+        }
+      },
+      profiles: codexProfiles
+    };
+
+    // Remove only the app-owned legacy Antigravity vault copy. Never touch
+    // external user-managed ~/.gemini or terminal-managed files.
+    const legacyAgyVaultDir = path.join(AUTH_VAULT_DIR, "antigravity");
+    if (fs.existsSync(legacyAgyVaultDir)) {
+      fs.rmSync(legacyAgyVaultDir, { recursive: true, force: true });
+    }
+
+    saveAuthVault();
   } catch (err) {
     console.error("Error initializing auth vault:", err);
   }
@@ -2696,7 +2696,8 @@ const server = http.createServer((req, res) => {
   // Antigravity integration is disabled by product policy and current Google Terms.
   if (
     url.pathname.startsWith("/api/auth/google") ||
-    url.pathname.startsWith("/api/auth/antigravity")
+    url.pathname.startsWith("/api/auth/antigravity") ||
+    url.pathname === "/oauth2callback"
   ) {
     res.writeHead(410, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({
