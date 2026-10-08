@@ -1,6 +1,7 @@
 package com.bossbayu.aiteam.runtime
 
 import android.content.Context
+import android.net.ConnectivityManager
 import android.os.Build
 import android.system.Os
 import android.util.Log
@@ -9,15 +10,13 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
- * Manages app-private Linux workstations.
+ * Manages app-private Linux workstations and the bundled AI engine pack.
  *
- * Alpine is bundled as an official verified minirootfs and extracted without
- * relying on a host "tar" executable. Extraction is staged and validated
- * before replacing the active rootfs.
+ * Alpine and engine archives are checksum-verified by Gradle before packaging.
+ * Extraction is staged, path-safe, and never relies on executable files copied
+ * from Android writable storage.
  */
 class WorkstationManager(private val context: Context) {
 
@@ -25,13 +24,18 @@ class WorkstationManager(private val context: Context) {
         private const val TAG = "WorkstationManager"
         const val WS_ALPINE = "alpine"
         const val WS_UBUNTU = "ubuntu"
+
         private const val PREFS_NAME = "workstation_prefs"
         private const val KEY_ACTIVE_WS = "active_workstation"
+
         private const val ALPINE_VERSION = "3.24.2"
         private const val ROOTFS_MARKER = ".rootfs-version"
 
-        const val UBUNTU_ARM64_ROOTFS_URL =
-            "https://cloud-images.ubuntu.com/minimal/releases/noble/release/ubuntu-24.04-minimal-cloudimg-arm64-root.tar.xz"
+        private const val CODEX_VERSION = "0.160.1"
+        private const val OPENCODE_VERSION = "2.0.24"
+        private const val ANTIGRAVITY_VERSION = "1.3.1"
+        private const val ENGINE_MARKER = ".engine-pack-version"
+        private const val DEPS_MARKER = ".engine-deps-v1"
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -68,11 +72,26 @@ class WorkstationManager(private val context: Context) {
         }
     }
 
+    private fun codexTriple(arch: String): String = when (arch) {
+        "aarch64" -> "aarch64-unknown-linux-musl"
+        "x86_64" -> "x86_64-unknown-linux-musl"
+        else -> error("Unsupported Codex arch: $arch")
+    }
+
     private fun expectedAlpineMarker(): String = "alpine-$ALPINE_VERSION-${alpineArch()}"
+
+    private fun expectedEngineMarker(): String =
+        "codex=$CODEX_VERSION;opencode=$OPENCODE_VERSION;antigravity=$ANTIGRAVITY_VERSION;arch=${alpineArch()}"
 
     fun isAlpineInstalled(): Boolean {
         return File(alpineDir, "bin/sh").isFile &&
             File(alpineDir, ROOTFS_MARKER).readTextOrNull()?.trim() == expectedAlpineMarker()
+    }
+
+    fun isEnginePackInstalled(): Boolean {
+        return File(alpineDir, "opt/aiteam/engines/$ENGINE_MARKER")
+            .readTextOrNull()
+            ?.trim() == expectedEngineMarker()
     }
 
     fun isUbuntuInstalled(): Boolean {
@@ -88,7 +107,7 @@ class WorkstationManager(private val context: Context) {
     }
 
     /**
-     * Ensures the default Alpine rootfs and persistent workspaces exist.
+     * Installs/verifies Alpine + bundled engine payloads.
      */
     fun ensureWorkstationsReady() {
         if (!isAlpineInstalled()) {
@@ -100,14 +119,63 @@ class WorkstationManager(private val context: Context) {
             "Alpine rootfs gagal diverifikasi setelah instalasi."
         }
 
+        if (!isEnginePackInstalled()) {
+            installBundledEnginePack(alpineDir, alpineArch())
+        }
+
+        configureGuestDns(alpineDir)
         budiWorkspace
         rianWorkspace
+    }
+
+    /**
+     * Installs small Alpine-native runtime dependencies needed by OpenCode and
+     * by Codex search/shell helpers. Failure is recoverable and may be retried.
+     */
+    fun provisionEngineDependencies(prootManager: PRootManager): Boolean {
+        ensureWorkstationsReady()
+
+        val marker = File(alpineDir, "opt/aiteam/$DEPS_MARKER")
+        if (marker.isFile) return true
+
+        configureGuestDns(alpineDir)
+
+        val result = prootManager.execute(
+            rootfsDir = alpineDir,
+            command = listOf(
+                "/sbin/apk",
+                "add",
+                "--no-cache",
+                "ca-certificates",
+                "libstdc++",
+                "ripgrep",
+                "zsh",
+                "git",
+                "bash",
+                "curl"
+            ),
+            budiWorkspace = budiWorkspace,
+            rianWorkspace = rianWorkspace,
+            environment = mapOf(
+                "HOME" to "/root",
+                "PATH" to "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "LANG" to "C.UTF-8"
+            )
+        )
+
+        if (!result.isSuccess) {
+            Log.w(TAG, "Alpine dependency provisioning failed: ${result.stderr.takeLast(1000)}")
+            return false
+        }
+
+        marker.parentFile?.mkdirs()
+        marker.writeText("ok\n")
+        return true
     }
 
     private fun extractAlpineFromAssets() {
         val arch = alpineArch()
         val assetName = "alpine-minirootfs-$ALPINE_VERSION-$arch.tgz"
-        val assetPath = "rootfs/$assetName"
         val base = workstationsBaseDir
         val staging = File(base, ".alpine-staging-${System.nanoTime()}")
         val backup = File(base, ".alpine-backup")
@@ -116,68 +184,20 @@ class WorkstationManager(private val context: Context) {
         staging.mkdirs()
         backup.deleteRecursively()
 
-        val symlinks = mutableListOf<Pair<File, String>>()
-        val hardLinks = mutableListOf<Pair<File, String>>()
-
         try {
-            context.assets.open(assetPath).use { raw ->
-                GzipCompressorInputStream(raw).use { gzip ->
-                    TarArchiveInputStream(gzip).use { tar ->
-                        var entry: TarArchiveEntry? = tar.nextEntry as? TarArchiveEntry
-                        while (entry != null) {
-                            val name = entry.name.removePrefix("./")
-                            if (name.isNotBlank()) {
-                                val target = safeTarget(staging, name)
-
-                                when {
-                                    entry.isDirectory -> {
-                                        target.mkdirs()
-                                        chmodQuietly(target, entry.mode)
-                                    }
-
-                                    entry.isSymbolicLink -> {
-                                        target.parentFile?.mkdirs()
-                                        symlinks += target to entry.linkName
-                                    }
-
-                                    entry.isLink -> {
-                                        target.parentFile?.mkdirs()
-                                        hardLinks += target to entry.linkName
-                                    }
-
-                                    entry.isFile -> {
-                                        target.parentFile?.mkdirs()
-                                        FileOutputStream(target).use { output ->
-                                            tar.copyTo(output)
-                                        }
-                                        chmodQuietly(target, entry.mode)
-                                    }
-                                }
-                            }
-                            entry = tar.nextEntry as? TarArchiveEntry
-                        }
-                    }
-                }
-            }
-
-            for ((target, linkName) in hardLinks) {
-                val source = safeTarget(staging, linkName.removePrefix("./"))
-                check(source.exists()) {
-                    "Hardlink source tidak ditemukan: $linkName"
-                }
-                target.delete()
-                Os.link(source.absolutePath, target.absolutePath)
-            }
-
-            for ((target, linkName) in symlinks) {
-                target.delete()
-                Os.symlink(linkName, target.absolutePath)
-            }
+            extractTarGzAsset(
+                assetPath = "rootfs/$assetName",
+                targetRoot = staging
+            ) { entryName, _ -> entryName }
 
             File(staging, "tmp").apply {
                 mkdirs()
-                chmodQuietly(this, 0x3FF) // 01777: world-writable temp with sticky bit.
+                chmodQuietly(this, 0x3FF) // 01777
             }
+
+            File(staging, "opt/workspaces/budi").mkdirs()
+            File(staging, "opt/workspaces/rian").mkdirs()
+            File(staging, "opt/aiteam/runtime").mkdirs()
 
             val shell = File(staging, "bin/sh")
             check(shell.exists()) {
@@ -185,6 +205,8 @@ class WorkstationManager(private val context: Context) {
             }
 
             File(staging, ROOTFS_MARKER).writeText(expectedAlpineMarker() + "\n")
+            installBundledEnginePack(staging, arch)
+            configureGuestDns(staging)
 
             if (alpineDir.exists()) {
                 check(alpineDir.renameTo(backup)) {
@@ -209,6 +231,198 @@ class WorkstationManager(private val context: Context) {
         }
     }
 
+    private fun installBundledEnginePack(rootfs: File, arch: String) {
+        val aiteamDir = File(rootfs, "opt/aiteam").apply { mkdirs() }
+        val staging = File(aiteamDir, ".engines-staging-${System.nanoTime()}")
+        val target = File(aiteamDir, "engines")
+        val backup = File(aiteamDir, ".engines-backup")
+        val binDir = File(aiteamDir, "bin")
+
+        staging.deleteRecursively()
+        staging.mkdirs()
+        backup.deleteRecursively()
+
+        try {
+            val triple = codexTriple(arch)
+            val codexRoot = File(staging, "codex/vendor/$triple")
+
+            extractTarGzAsset(
+                assetPath = "engines/$arch/codex-$CODEX_VERSION.tgz",
+                targetRoot = codexRoot
+            ) { entryName, entry ->
+                val prefix = "package/vendor/$triple/"
+                if (!entryName.startsWith(prefix)) return@extractTarGzAsset null
+                val relative = entryName.removePrefix(prefix)
+
+                when {
+                    relative == "bin/codex" -> relative
+                    relative == "bin/codex-code-mode-host" -> relative
+                    relative == "codex-resources/bwrap" -> relative
+                    relative == "codex-package.json" -> relative
+
+                    // ARM64 bundled rg/zsh are glibc builds. Both architectures
+                    // intentionally use Alpine-native ripgrep/zsh for symmetry.
+                    relative.startsWith("codex-path/") -> null
+                    relative.startsWith("codex-resources/zsh/") -> null
+                    relative.startsWith("codex-resources/voice/") -> null
+                    else -> if (entry.isDirectory) relative else null
+                }
+            }
+
+            extractTarGzAsset(
+                assetPath = "engines/$arch/opencode-$OPENCODE_VERSION.tgz",
+                targetRoot = File(staging, "opencode")
+            ) { entryName, _ ->
+                if (entryName == "package/bin/opencode") "bin/opencode" else null
+            }
+
+            extractTarGzAsset(
+                assetPath = "engines/$arch/antigravity-$ANTIGRAVITY_VERSION.tgz",
+                targetRoot = File(staging, "antigravity")
+            ) { entryName, _ ->
+                if (entryName == "antigravity") "bin/agy" else null
+            }
+
+            listOf(
+                File(staging, "codex/vendor/$triple/bin/codex"),
+                File(staging, "codex/vendor/$triple/bin/codex-code-mode-host"),
+                File(staging, "codex/vendor/$triple/codex-resources/bwrap"),
+                File(staging, "opencode/bin/opencode"),
+                File(staging, "antigravity/bin/agy")
+            ).forEach { executable ->
+                check(executable.isFile) {
+                    "Engine payload tidak lengkap: ${executable.absolutePath}"
+                }
+                chmodQuietly(executable, 0x1ED) // 0755
+            }
+
+            File(staging, ENGINE_MARKER).writeText(expectedEngineMarker() + "\n")
+
+            if (target.exists()) {
+                check(target.renameTo(backup)) { "Gagal membuat backup engine pack." }
+            }
+            if (!staging.renameTo(target)) {
+                if (backup.exists()) backup.renameTo(target)
+                error("Gagal mengaktifkan engine pack.")
+            }
+            backup.deleteRecursively()
+
+            binDir.deleteRecursively()
+            binDir.mkdirs()
+            createRelativeSymlink(
+                File(binDir, "codex"),
+                "../engines/codex/vendor/$triple/bin/codex"
+            )
+            createRelativeSymlink(
+                File(binDir, "opencode"),
+                "../engines/opencode/bin/opencode"
+            )
+            createRelativeSymlink(
+                File(binDir, "agy"),
+                "../engines/antigravity/bin/agy"
+            )
+
+            Log.i(TAG, "Bundled AI engine pack ready for $arch.")
+        } catch (e: Exception) {
+            staging.deleteRecursively()
+            if (!target.exists() && backup.exists()) backup.renameTo(target)
+            throw e
+        }
+    }
+
+    private fun createRelativeSymlink(link: File, target: String) {
+        link.delete()
+        link.parentFile?.mkdirs()
+        Os.symlink(target, link.absolutePath)
+    }
+
+    /**
+     * Generic gzip+tar extractor with an entry mapper. Returning null skips an
+     * entry. All destination paths are checked against traversal.
+     */
+    private fun extractTarGzAsset(
+        assetPath: String,
+        targetRoot: File,
+        mapEntry: (String, TarArchiveEntry) -> String?
+    ) {
+        targetRoot.mkdirs()
+
+        val symlinks = mutableListOf<Pair<File, String>>()
+        val hardLinks = mutableListOf<Pair<File, String>>()
+
+        context.assets.open(assetPath).use { raw ->
+            GzipCompressorInputStream(raw).use { gzip ->
+                TarArchiveInputStream(gzip).use { tar ->
+                    var entry = tar.nextEntry as? TarArchiveEntry
+                    while (entry != null) {
+                        val sourceName = entry.name.removePrefix("./")
+                        val mapped = mapEntry(sourceName, entry)
+
+                        if (!mapped.isNullOrBlank()) {
+                            val target = safeTarget(targetRoot, mapped)
+
+                            when {
+                                entry.isDirectory -> target.mkdirs()
+
+                                entry.isSymbolicLink -> {
+                                    target.parentFile?.mkdirs()
+                                    symlinks += target to entry.linkName
+                                }
+
+                                entry.isLink -> {
+                                    target.parentFile?.mkdirs()
+                                    hardLinks += target to entry.linkName
+                                }
+
+                                entry.isFile -> {
+                                    target.parentFile?.mkdirs()
+                                    FileOutputStream(target).use { output ->
+                                        tar.copyTo(output)
+                                    }
+                                    chmodQuietly(target, entry.mode)
+                                }
+                            }
+                        }
+
+                        entry = tar.nextEntry as? TarArchiveEntry
+                    }
+                }
+            }
+        }
+
+        for ((target, linkName) in hardLinks) {
+            val source = safeTarget(targetRoot, linkName.removePrefix("./"))
+            check(source.exists()) { "Hardlink source tidak ditemukan: $linkName" }
+            target.delete()
+            Os.link(source.absolutePath, target.absolutePath)
+        }
+
+        for ((target, linkName) in symlinks) {
+            target.delete()
+            Os.symlink(linkName, target.absolutePath)
+        }
+    }
+
+    private fun configureGuestDns(rootfs: File) {
+        try {
+            val connectivity =
+                context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val active = connectivity.activeNetwork ?: return
+            val dnsServers = connectivity.getLinkProperties(active)?.dnsServers.orEmpty()
+            if (dnsServers.isEmpty()) return
+
+            val resolv = File(rootfs, "etc/resolv.conf")
+            resolv.parentFile?.mkdirs()
+            resolv.writeText(
+                dnsServers.joinToString(separator = "\n", postfix = "\n") {
+                    "nameserver ${it.hostAddress}"
+                }
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Tidak dapat menyinkronkan DNS Android ke rootfs: ${e.message}")
+        }
+    }
+
     private fun safeTarget(root: File, archivePath: String): File {
         val normalized = archivePath
             .replace('\\', '/')
@@ -224,7 +438,7 @@ class WorkstationManager(private val context: Context) {
         val targetPath = target.canonicalFile.absolutePath
 
         require(targetPath.startsWith(rootPath)) {
-            "Entry keluar dari rootfs staging: $archivePath"
+            "Entry keluar dari target staging: $archivePath"
         }
         return target
     }
@@ -247,7 +461,7 @@ class WorkstationManager(private val context: Context) {
 
     fun switchWorkstation(target: String): Boolean {
         if (target == WS_UBUNTU && !isUbuntuInstalled()) {
-            Log.w(TAG, "Cannot switch to Ubuntu: not installed yet.")
+            Log.w(TAG, "Ubuntu belum diprovisikan pada hardened v2.")
             return false
         }
 
@@ -260,61 +474,14 @@ class WorkstationManager(private val context: Context) {
     }
 
     /**
-     * Ubuntu remains opt-in. It is intentionally not used as the default v2
-     * runtime until the architecture-specific rootfs path is hardened equally.
+     * Ubuntu remains intentionally disabled until its rootfs and extraction
+     * path receives the same per-ABI verification guarantees as Alpine.
      */
     fun installUbuntuWorkstation(onProgress: (percent: Int, status: String) -> Unit): Boolean {
-        if (!Build.SUPPORTED_ABIS.contains("arm64-v8a")) {
-            onProgress(-1, "Ubuntu on-demand saat ini hanya diverifikasi untuk ARM64.")
-            return false
-        }
-
-        return try {
-            onProgress(0, "Mempersiapkan unduhan Ubuntu 24.04 ARM64...")
-            val downloadDest = File(context.cacheDir, "ubuntu-rootfs.tar.xz")
-
-            val connection = URL(UBUNTU_ARM64_ROOTFS_URL)
-                .openConnection() as HttpURLConnection
-            connection.connectTimeout = 15000
-            connection.readTimeout = 30000
-            val totalBytes = connection.contentLengthLong
-
-            var downloadedBytes = 0L
-            connection.inputStream.use { input ->
-                FileOutputStream(downloadDest).use { output ->
-                    val buffer = ByteArray(64 * 1024)
-                    var bytesRead: Int
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        downloadedBytes += bytesRead
-                        if (totalBytes > 0) {
-                            val percent = (downloadedBytes * 80 / totalBytes).toInt()
-                            onProgress(
-                                percent,
-                                "Mengunduh Ubuntu: ${downloadedBytes / (1024 * 1024)}MB / ${totalBytes / (1024 * 1024)}MB"
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Hardened v2 does not execute a host tar binary from app storage.
-            // Keep the download for a future verified XZ extractor path.
-            downloadDest.delete()
-            onProgress(
-                -1,
-                "Installer Ubuntu belum diaktifkan di hardened v2. Alpine adalah workstation default yang tervalidasi."
-            )
-            false
-        } catch (e: Exception) {
-            downloadDestCleanup()
-            Log.e(TAG, "Failed to prepare Ubuntu workstation: ${e.message}", e)
-            onProgress(-1, "Gagal menyiapkan Ubuntu: ${e.message}")
-            false
-        }
-    }
-
-    private fun downloadDestCleanup() {
-        File(context.cacheDir, "ubuntu-rootfs.tar.xz").delete()
+        onProgress(
+            -1,
+            "Installer Ubuntu belum diaktifkan di hardened v2. Alpine adalah workstation default yang tervalidasi."
+        )
+        return false
     }
 }
