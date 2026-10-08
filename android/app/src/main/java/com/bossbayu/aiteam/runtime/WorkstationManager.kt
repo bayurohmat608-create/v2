@@ -10,6 +10,11 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.FileInputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.MessageDigest
+import java.util.Base64
 
 /**
  * Manages app-private Linux workstations and the bundled AI engine pack.
@@ -33,9 +38,25 @@ class WorkstationManager(private val context: Context) {
 
         private const val CODEX_VERSION = "0.160.1"
         private const val OPENCODE_VERSION = "2.0.24"
+        private const val ANTIGRAVITY_VERSION = "1.3.1"
         private const val ENGINE_MARKER = ".engine-pack-version"
         private const val DEPS_MARKER = ".engine-deps-v1"
+        private const val MAX_ENGINE_ARCHIVE_BYTES = 512L * 1024L * 1024L
     }
+
+
+    private enum class DigestEncoding {
+        BASE64,
+        HEX
+    }
+
+    private data class EngineArtifact(
+        val label: String,
+        val filename: String,
+        val url: String,
+        val sha512: String,
+        val encoding: DigestEncoding
+    )
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -80,7 +101,7 @@ class WorkstationManager(private val context: Context) {
     private fun expectedAlpineMarker(): String = "alpine-$ALPINE_VERSION-${alpineArch()}"
 
     private fun expectedEngineMarker(): String =
-        "codex=$CODEX_VERSION;opencode=$OPENCODE_VERSION;arch=${alpineArch()}"
+        "codex=$CODEX_VERSION;opencode=$OPENCODE_VERSION;antigravity=$ANTIGRAVITY_VERSION;arch=${alpineArch()}"
 
     fun isAlpineInstalled(): Boolean {
         return File(alpineDir, "bin/sh").isFile &&
@@ -118,13 +139,24 @@ class WorkstationManager(private val context: Context) {
             "Alpine rootfs gagal diverifikasi setelah instalasi."
         }
 
-        if (!isEnginePackInstalled()) {
-            installBundledEnginePack(alpineDir, alpineArch())
-        }
-
         configureGuestDns(alpineDir)
         budiWorkspace
         rianWorkspace
+    }
+
+    fun ensureEnginePackReady(
+        onProgress: (String) -> Unit = {}
+    ): Boolean {
+        ensureWorkstationsReady()
+        if (isEnginePackInstalled()) return true
+
+        return try {
+            installEnginePackFromNetwork(alpineDir, alpineArch(), onProgress)
+            isEnginePackInstalled()
+        } catch (e: Exception) {
+            Log.e(TAG, "Engine provisioning failed: ${e.message}", e)
+            false
+        }
     }
 
     /**
@@ -204,7 +236,6 @@ class WorkstationManager(private val context: Context) {
             }
 
             File(staging, ROOTFS_MARKER).writeText(expectedAlpineMarker() + "\n")
-            installBundledEnginePack(staging, arch)
             configureGuestDns(staging)
 
             if (alpineDir.exists()) {
@@ -230,37 +261,100 @@ class WorkstationManager(private val context: Context) {
         }
     }
 
-    private fun installBundledEnginePack(rootfs: File, arch: String) {
+
+    private fun engineArtifacts(arch: String): List<EngineArtifact> {
+        return when (arch) {
+            "aarch64" -> listOf(
+                EngineArtifact(
+                    "OpenAI Codex",
+                    "codex-$CODEX_VERSION.tgz",
+                    "https://registry.npmjs.org/@openai/codex/-/codex-$CODEX_VERSION-linux-arm64.tgz",
+                    "JLyjBlmjPvwTaicHemw+y5xQSz3Uja2r7F/xkvS8gFufTA2g132Ak+0fo35xnJ/k2uc9fTtjm0LrsEGI78L6Ng==",
+                    DigestEncoding.BASE64
+                ),
+                EngineArtifact(
+                    "OpenCode",
+                    "opencode-$OPENCODE_VERSION.tgz",
+                    "https://registry.npmjs.org/@opencode/cli-linux-arm64-musl/-/cli-linux-arm64-musl-$OPENCODE_VERSION.tgz",
+                    "DfL6bISz9udxWU5AIEocMjDLnpgtWGfx5sw7fXKpLUhBFhsjdBOkCrBYuDBFuPwJoe5VJPdF+A/OoTfe+Wi6XA==",
+                    DigestEncoding.BASE64
+                ),
+                EngineArtifact(
+                    "Google Antigravity",
+                    "antigravity-$ANTIGRAVITY_VERSION.tgz",
+                    "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.1-4582356770750464/linux-arm-musl/cli_linux_arm64_musl.tar.gz",
+                    "894f8e980020676966f0610122a3f15207e2cd82eb73bfe856418c32623e53c7e8762df3753fab374ee95d92fb8eb42e21260e2c7793e19e7f1c55905f3f6a5c",
+                    DigestEncoding.HEX
+                )
+            )
+
+            "x86_64" -> listOf(
+                EngineArtifact(
+                    "OpenAI Codex",
+                    "codex-$CODEX_VERSION.tgz",
+                    "https://registry.npmjs.org/@openai/codex/-/codex-$CODEX_VERSION-linux-x64.tgz",
+                    "sIDhqV+bsZKKVaVFVY5iB+pAzyOz2XRm3H1KXCsSJwGj5p98qnrT0Fweo1Hfe7WnyTp8mfBNdbVzUeO+mHYugA==",
+                    DigestEncoding.BASE64
+                ),
+                EngineArtifact(
+                    "OpenCode",
+                    "opencode-$OPENCODE_VERSION.tgz",
+                    "https://registry.npmjs.org/@opencode/cli-linux-x64-musl/-/cli-linux-x64-musl-$OPENCODE_VERSION.tgz",
+                    "PK2cEuioc9181iPYtwzLC4XqBjKMTjcO/5PNOvpM41mEgsyPTYfhX+IqgYcgvNEK1BPp/8oAl62xkMgBSxlupg==",
+                    DigestEncoding.BASE64
+                ),
+                EngineArtifact(
+                    "Google Antigravity",
+                    "antigravity-$ANTIGRAVITY_VERSION.tgz",
+                    "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.1-4582356770750464/linux-x64-musl/cli_linux_x64_musl.tar.gz",
+                    "027b7169b29d9d1aa80bd28d8d2defa9ef50353bcc194c5e46d1315fafe29cf74624e8e24e8ad0d7eaa3e2651f5c70ae8f40d14a0a04db68f027feac1edcce1d",
+                    DigestEncoding.HEX
+                )
+            )
+
+            else -> error("Unsupported engine architecture: $arch")
+        }
+    }
+
+    private fun installEnginePackFromNetwork(
+        rootfs: File,
+        arch: String,
+        onProgress: (String) -> Unit
+    ) {
         val aiteamDir = File(rootfs, "opt/aiteam").apply { mkdirs() }
         val staging = File(aiteamDir, ".engines-staging-${System.nanoTime()}")
         val target = File(aiteamDir, "engines")
         val backup = File(aiteamDir, ".engines-backup")
         val binDir = File(aiteamDir, "bin")
+        val cacheDir = File(context.cacheDir, "engine-downloads/$arch").apply { mkdirs() }
 
         staging.deleteRecursively()
         staging.mkdirs()
         backup.deleteRecursively()
 
+        val artifacts = engineArtifacts(arch)
+        val archives = artifacts.associateWith {
+            downloadVerifiedArtifact(it, cacheDir, onProgress)
+        }
+
         try {
             val triple = codexTriple(arch)
             val codexRoot = File(staging, "codex/vendor/$triple")
 
-            extractTarGzAsset(
-                assetPath = "engines/$arch/codex-$CODEX_VERSION.tgz",
-                targetRoot = codexRoot
+            extractTarGzFile(
+                archives.getValue(artifacts[0]),
+                codexRoot
             ) { entryName, entry ->
                 val prefix = "package/vendor/$triple/"
-                if (!entryName.startsWith(prefix)) return@extractTarGzAsset null
+                if (!entryName.startsWith(prefix)) {
+                    return@extractTarGzFile null
+                }
                 val relative = entryName.removePrefix(prefix)
-
                 when {
                     relative == "bin/codex" -> relative
                     relative == "bin/codex-code-mode-host" -> relative
                     relative == "codex-resources/bwrap" -> relative
                     relative == "codex-package.json" -> relative
-
-                    // ARM64 bundled rg/zsh are glibc builds. Both architectures
-                    // intentionally use Alpine-native ripgrep/zsh for symmetry.
                     relative.startsWith("codex-path/") -> null
                     relative.startsWith("codex-resources/zsh/") -> null
                     relative.startsWith("codex-resources/voice/") -> null
@@ -268,23 +362,31 @@ class WorkstationManager(private val context: Context) {
                 }
             }
 
-            extractTarGzAsset(
-                assetPath = "engines/$arch/opencode-$OPENCODE_VERSION.tgz",
-                targetRoot = File(staging, "opencode")
+            extractTarGzFile(
+                archives.getValue(artifacts[1]),
+                File(staging, "opencode")
             ) { entryName, _ ->
                 if (entryName == "package/bin/opencode") "bin/opencode" else null
+            }
+
+            extractTarGzFile(
+                archives.getValue(artifacts[2]),
+                File(staging, "antigravity")
+            ) { entryName, _ ->
+                if (entryName == "antigravity") "bin/agy" else null
             }
 
             listOf(
                 File(staging, "codex/vendor/$triple/bin/codex"),
                 File(staging, "codex/vendor/$triple/bin/codex-code-mode-host"),
                 File(staging, "codex/vendor/$triple/codex-resources/bwrap"),
-                File(staging, "opencode/bin/opencode")
+                File(staging, "opencode/bin/opencode"),
+                File(staging, "antigravity/bin/agy")
             ).forEach { executable ->
                 check(executable.isFile) {
                     "Engine payload tidak lengkap: ${executable.absolutePath}"
                 }
-                chmodQuietly(executable, 0x1ED) // 0755
+                chmodQuietly(executable, 0x1ED)
             }
 
             File(staging, ENGINE_MARKER).writeText(expectedEngineMarker() + "\n")
@@ -308,14 +410,123 @@ class WorkstationManager(private val context: Context) {
                 File(binDir, "opencode"),
                 "../engines/opencode/bin/opencode"
             )
+            createRelativeSymlink(
+                File(binDir, "agy"),
+                "../engines/antigravity/bin/agy"
+            )
 
-            Log.i(TAG, "Bundled AI engine pack ready for $arch.")
+            cacheDir.deleteRecursively()
+            onProgress("Engine AI siap.")
+            Log.i(TAG, "Verified AI engine pack ready for $arch.")
         } catch (e: Exception) {
             staging.deleteRecursively()
             if (!target.exists() && backup.exists()) backup.renameTo(target)
             throw e
         }
     }
+
+    private fun downloadVerifiedArtifact(
+        artifact: EngineArtifact,
+        cacheDir: File,
+        onProgress: (String) -> Unit
+    ): File {
+        val destination = File(cacheDir, artifact.filename)
+        if (destination.isFile && verifySha512(destination, artifact)) {
+            onProgress("${artifact.label}: cache terverifikasi.")
+            return destination
+        }
+
+        destination.delete()
+        val partial = File(cacheDir, artifact.filename + ".part")
+        partial.delete()
+
+        val url = URL(artifact.url)
+        require(url.protocol == "https") {
+            "Engine URL wajib HTTPS: ${artifact.url}"
+        }
+
+        onProgress("Mengunduh ${artifact.label}...")
+
+        val connection = url.openConnection() as HttpURLConnection
+        connection.instanceFollowRedirects = true
+        connection.connectTimeout = 20_000
+        connection.readTimeout = 60_000
+        connection.useCaches = false
+
+        try {
+            val code = connection.responseCode
+            check(code in 200..299) {
+                "${artifact.label}: HTTP $code"
+            }
+
+            val expectedLength = connection.contentLengthLong
+            check(expectedLength <= 0 || expectedLength <= MAX_ENGINE_ARCHIVE_BYTES) {
+                "${artifact.label}: archive terlalu besar ($expectedLength bytes)"
+            }
+
+            var downloadedBytes = 0L
+            var nextProgressAt = 8L * 1024L * 1024L
+
+            connection.inputStream.use { input ->
+                FileOutputStream(partial).use { output ->
+                    val buffer = ByteArray(128 * 1024)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read <= 0) break
+                        downloadedBytes += read
+                        check(downloadedBytes <= MAX_ENGINE_ARCHIVE_BYTES) {
+                            "${artifact.label}: download melewati batas ukuran."
+                        }
+                        output.write(buffer, 0, read)
+
+                        if (downloadedBytes >= nextProgressAt) {
+                            val mib = downloadedBytes / (1024L * 1024L)
+                            onProgress("Mengunduh ${artifact.label}: $mib MiB")
+                            nextProgressAt += 8L * 1024L * 1024L
+                        }
+                    }
+                }
+            }
+
+            check(verifySha512(partial, artifact)) {
+                "${artifact.label}: SHA-512 tidak cocok."
+            }
+
+            if (!partial.renameTo(destination)) {
+                partial.copyTo(destination, overwrite = true)
+                partial.delete()
+            }
+
+            return destination
+        } finally {
+            connection.disconnect()
+            if (!destination.exists()) partial.delete()
+        }
+    }
+
+    private fun verifySha512(file: File, artifact: EngineArtifact): Boolean {
+        val digest = MessageDigest.getInstance("SHA-512")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(1024 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+
+        val bytes = digest.digest()
+        val actual = when (artifact.encoding) {
+            DigestEncoding.BASE64 -> Base64.getEncoder().encodeToString(bytes)
+            DigestEncoding.HEX -> bytes.joinToString("") { "%02x".format(it) }
+        }
+
+        return MessageDigest.isEqual(
+            actual.toByteArray(Charsets.US_ASCII),
+            artifact.sha512.toByteArray(Charsets.US_ASCII)
+        )
+    }
+
 
     private fun createRelativeSymlink(link: File, target: String) {
         link.delete()
@@ -327,6 +538,69 @@ class WorkstationManager(private val context: Context) {
      * Generic gzip+tar extractor with an entry mapper. Returning null skips an
      * entry. All destination paths are checked against traversal.
      */
+    private fun extractTarGzFile(
+        archive: File,
+        targetRoot: File,
+        mapEntry: (String, TarArchiveEntry) -> String?
+    ) {
+        targetRoot.mkdirs()
+
+        val symlinks = mutableListOf<Pair<File, String>>()
+        val hardLinks = mutableListOf<Pair<File, String>>()
+
+        FileInputStream(archive).use { raw ->
+            GzipCompressorInputStream(raw).use { gzip ->
+                TarArchiveInputStream(gzip).use { tar ->
+                    var entry = tar.nextEntry as? TarArchiveEntry
+                    while (entry != null) {
+                        val sourceName = entry.name.removePrefix("./")
+                        val mapped = mapEntry(sourceName, entry)
+
+                        if (!mapped.isNullOrBlank()) {
+                            val target = safeTarget(targetRoot, mapped)
+
+                            when {
+                                entry.isDirectory -> target.mkdirs()
+
+                                entry.isSymbolicLink -> {
+                                    target.parentFile?.mkdirs()
+                                    symlinks += target to entry.linkName
+                                }
+
+                                entry.isLink -> {
+                                    target.parentFile?.mkdirs()
+                                    hardLinks += target to entry.linkName
+                                }
+
+                                entry.isFile -> {
+                                    target.parentFile?.mkdirs()
+                                    FileOutputStream(target).use { output ->
+                                        tar.copyTo(output)
+                                    }
+                                    chmodQuietly(target, entry.mode)
+                                }
+                            }
+                        }
+
+                        entry = tar.nextEntry as? TarArchiveEntry
+                    }
+                }
+            }
+        }
+
+        for ((target, linkName) in hardLinks) {
+            val source = safeTarget(targetRoot, linkName.removePrefix("./"))
+            check(source.exists()) { "Hardlink source tidak ditemukan: $linkName" }
+            target.delete()
+            Os.link(source.absolutePath, target.absolutePath)
+        }
+
+        for ((target, linkName) in symlinks) {
+            target.delete()
+            Os.symlink(linkName, target.absolutePath)
+        }
+    }
+
     private fun extractTarGzAsset(
         assetPath: String,
         targetRoot: File,
