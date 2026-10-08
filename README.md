@@ -77,7 +77,7 @@ Runtime files, credentials, logs, local engine links, build outputs, APKs, and a
 
 ## Android
 
-The Android host is under `android/`.
+The Android host is under `android/` and is versioned as **2.0.0**.
 
 Current build baseline:
 
@@ -87,15 +87,27 @@ Current build baseline:
 - JDK 17
 - Android Gradle Plugin 8.13.2
 - Gradle 8.13
+- Supported APK ABIs: `arm64-v8a` and `x86_64`
 
 Build:
 
 ```bash
 cd android
-./gradlew assembleDebug
+./gradlew lintDebug assembleDebug
 ```
 
-The build task generates runtime assets from the repository root before packaging. The in-app terminal uses the native Android terminal path; `/api/terminal/exec` intentionally does not provide a raw HTTP shell in v2.
+The Android build is intentionally self-contained at the runtime layer:
+
+- **Node.js backend:** embedded Node.js Mobile 24.20.0-0 loaded through JNI from APK native libraries. No Node executable is copied to writable app storage.
+- **Linux workstation:** PRoot 5.1.107.96 executes from Android's native library area with an APK-resident loader. PRoot is packaged with private dynamic `talloc` and `libandroid-shmem` dependencies.
+- **Root filesystem:** official Alpine Linux 3.24.2 minirootfs for ARM64/x86_64. Gradle verifies the official SHA-256 before packaging.
+- **AI engines:** Codex 0.160.1, OpenCode 2.0.24 musl, and Antigravity 1.3.1 musl are downloaded from pinned upstream artifacts and verified during the build.
+- **Guest dependencies:** on first provisioning, Alpine installs small native dependencies such as CA certificates, `libstdc++`, `ripgrep`, `zsh`, `git`, `bash`, and `curl`. This step requires network access to the configured Alpine repositories.
+- **Canonical assets:** Android packages the root `server.js`, `cli.js`, `web/`, and `personas/` at build time, so the APK and desktop runtime share one backend source of truth.
+
+The embedded backend runs in the dedicated Android `:engine` process. AI CLI execution on Android is routed through the verified PRoot + Alpine workstation and bind-mounts only the required runtime/workspace paths. The native Android terminal uses the same PRoot workstation. Raw shell execution over `/api/terminal/exec` remains disabled.
+
+Because three large native AI CLIs are bundled for two ABIs, a universal debug APK is intentionally large. Production distribution should prefer Android App Bundles / ABI-specific delivery so each device receives only its architecture.
 
 ## Security model
 
