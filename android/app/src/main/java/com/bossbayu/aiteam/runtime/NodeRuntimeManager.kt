@@ -1,6 +1,7 @@
 package com.bossbayu.aiteam.runtime
 
 import android.content.Context
+import android.system.Os
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -11,7 +12,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Manages the embedded Node.js process hosting server.js on 127.0.0.1:3000.
+ * Runs server.js inside an embedded Node.js Mobile runtime.
+ *
+ * The runtime itself is a native library shipped in the APK. JavaScript assets
+ * remain writable data, while executable native code comes from the APK's
+ * native library directory.
  */
 class NodeRuntimeManager(
     private val context: Context,
@@ -21,9 +26,17 @@ class NodeRuntimeManager(
     companion object {
         private const val TAG = "NodeRuntimeManager"
         const val DEFAULT_PORT = 3000
+
+        @Volatile
+        private var nodeThread: Thread? = null
+
+        @Volatile
+        private var nodeExitCode: Int? = null
+
+        private val nodeStartLock = Any()
     }
 
-    private var serverProcess: Process? = null
+    @Volatile
     private var isRunning = false
 
     val serverDir: File
@@ -32,127 +45,128 @@ class NodeRuntimeManager(
     val serverScriptFile: File
         get() = File(serverDir, "server.js")
 
+    val runtimeDir: File
+        get() = File(context.filesDir, ".runtime").apply { mkdirs() }
+
     val authVaultDir: File
-        get() = File(context.filesDir, "auth_vault").apply { mkdirs() }
+        get() = File(runtimeDir, "auth_vault").apply { mkdirs() }
 
     val enginesDir: File
         get() = File(context.filesDir, "engines").apply { mkdirs() }
 
     /**
-     * Extracts server assets (web files, server.js) from Android assets to filesDir.
+     * Synchronize canonical JS/web assets packaged by Gradle into app storage.
      */
     suspend fun syncAssets() = withContext(Dispatchers.IO) {
         copyAssetDirectory("server", serverDir)
         val webDir = File(serverDir, "web").apply { mkdirs() }
         copyAssetDirectory("web", webDir)
-        copyAssetDirectory("engines", enginesDir)
     }
 
     /**
-     * Starts the Node.js HTTP/SSE server.
+     * Starts embedded Node and waits until the HTTP server answers.
      */
     suspend fun startServer(): Int = withContext(Dispatchers.IO) {
-        if (isRunning && isServerHealthy()) {
-            Log.d(TAG, "Server already running and healthy.")
+        if (isServerHealthy()) {
+            isRunning = true
             return@withContext DEFAULT_PORT
         }
 
         syncAssets()
+        configureEnvironment()
 
-        val nodeBin = findNodeExecutable()
-            ?: throw IllegalStateException(
-                "Node.js runtime tidak tersedia di aplikasi. V2 tidak mengeksekusi binary dari sandbox aplikasi secara diam-diam; runtime Node harus diprovisikan secara resmi."
-            )
-        val env = mutableMapOf(
-            "PORT" to DEFAULT_PORT.toString(),
-            "HOST" to "127.0.0.1",
-            "NODE_ENV" to "production",
-            "HOME" to context.filesDir.absolutePath,
-            "AUTH_VAULT_DIR" to authVaultDir.absolutePath,
-            "BUDI_WORKSPACE" to workstationManager.budiWorkspace.absolutePath,
-            "RIAN_WORKSPACE" to workstationManager.rianWorkspace.absolutePath,
-            "WORKSTATIONS_DIR" to workstationManager.workstationsBaseDir.absolutePath,
-            "PATH" to "${enginesDir.absolutePath}:${File(context.filesDir, "bin").absolutePath}:${System.getenv("PATH") ?: ""}"
-        )
-
-        val cmd = listOf(nodeBin, serverScriptFile.absolutePath)
-        Log.d(TAG, "Spawning node process: ${cmd.joinToString(" ")}")
-
-        val processBuilder = ProcessBuilder(cmd)
-        processBuilder.directory(serverDir)
-        processBuilder.environment().putAll(env)
-        processBuilder.redirectErrorStream(true)
-
-        val process = processBuilder.start()
-        serverProcess = process
-        isRunning = true
-
-        // Read output asynchronously for debugging
-        Thread {
-            process.inputStream.bufferedReader().useLines { lines ->
-                lines.forEach { line ->
-                    Log.d("NodeServerOutput", line)
+        synchronized(nodeStartLock) {
+            if (nodeThread?.isAlive != true) {
+                nodeExitCode = null
+                nodeThread = Thread {
+                    try {
+                        Log.i(TAG, "Starting embedded Node.js Mobile runtime...")
+                        val exitCode = NodeBridge.startNodeWithArguments(
+                            arrayOf("node", serverScriptFile.absolutePath)
+                        )
+                        nodeExitCode = exitCode
+                        Log.w(TAG, "Embedded Node exited with code $exitCode")
+                    } catch (t: Throwable) {
+                        nodeExitCode = -1
+                        Log.e(TAG, "Embedded Node crashed: ${t.message}", t)
+                    } finally {
+                        isRunning = false
+                    }
+                }.apply {
+                    name = "embedded-node"
+                    isDaemon = false
+                    start()
                 }
             }
-        }.start()
+        }
 
-        // Wait for server to respond on 127.0.0.1:3000
         var attempts = 0
-        while (attempts < 30) {
+        while (attempts < 60) {
             delay(500)
             if (isServerHealthy()) {
-                Log.d(TAG, "Node.js server verified healthy on port $DEFAULT_PORT!")
+                isRunning = true
+                Log.i(TAG, "Embedded Node server healthy on 127.0.0.1:$DEFAULT_PORT")
                 return@withContext DEFAULT_PORT
+            }
+
+            if (nodeThread?.isAlive != true) {
+                throw IllegalStateException(
+                    "Embedded Node berhenti sebelum server siap (exit=${nodeExitCode ?: "unknown"})."
+                )
             }
             attempts++
         }
 
-        isRunning = false
-        serverProcess?.destroy()
-        serverProcess = null
-        throw IllegalStateException("Node.js server gagal health-check pada 127.0.0.1:$DEFAULT_PORT")
+        throw IllegalStateException(
+            "Embedded Node server gagal health-check pada 127.0.0.1:$DEFAULT_PORT"
+        )
     }
 
     /**
-     * Stops the Node.js server gracefully.
+     * The embedded Node lifecycle is tied to the dedicated :engine Android
+     * process. EngineForegroundService terminates that process on explicit stop.
      */
     fun stopServer() {
-        try {
-            serverProcess?.destroy()
-            serverProcess = null
-            isRunning = false
-            Log.d(TAG, "Node.js server stopped.")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error stopping server: ${e.message}", e)
-        }
+        isRunning = false
+        Log.d(TAG, "Embedded Node stop requested; service process owns final shutdown.")
     }
 
     fun isServerHealthy(): Boolean {
         return try {
-            val url = URL("http://127.0.0.1:$DEFAULT_PORT/api/status")
-            val conn = url.openConnection() as HttpURLConnection
+            val conn = URL("http://127.0.0.1:$DEFAULT_PORT/api/status")
+                .openConnection() as HttpURLConnection
             conn.connectTimeout = 1000
             conn.readTimeout = 1000
+            conn.useCaches = false
             conn.responseCode == 200
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
 
-    private fun findNodeExecutable(): String? {
-        val candidates = mutableListOf(
-            File(context.filesDir, "bin/node"),
-            File(context.filesDir, "engines/node")
+    private fun configureEnvironment() {
+        val env = mapOf(
+            "PORT" to DEFAULT_PORT.toString(),
+            "HOST" to "127.0.0.1",
+            "NODE_ENV" to "production",
+            "HOME" to context.filesDir.absolutePath,
+            "CHAT_AI_RUNTIME_DIR" to runtimeDir.absolutePath,
+            "AUTH_VAULT_DIR" to authVaultDir.absolutePath,
+            "BUDI_WORKSPACE" to workstationManager.budiWorkspace.absolutePath,
+            "RIAN_WORKSPACE" to workstationManager.rianWorkspace.absolutePath,
+            "WORKSTATIONS_DIR" to workstationManager.workstationsBaseDir.absolutePath,
+            "ANDROID_RUNTIME" to "1",
+            "ANDROID_NATIVE_LIB_DIR" to context.applicationInfo.nativeLibraryDir,
+            "PATH" to listOf(
+                enginesDir.absolutePath,
+                File(context.filesDir, "bin").absolutePath,
+                System.getenv("PATH") ?: ""
+            ).joinToString(File.pathSeparator)
         )
 
-        val pathEntries = (System.getenv("PATH") ?: "")
-            .split(File.pathSeparator)
-            .filter { it.isNotBlank() }
-        candidates += pathEntries.map { File(it, "node") }
-
-        return candidates
-            .firstOrNull { it.exists() && it.canExecute() }
-            ?.absolutePath
+        env.forEach { (key, value) ->
+            Os.setenv(key, value, true)
+        }
     }
 
     private fun copyAssetDirectory(assetPath: String, targetDir: File) {
@@ -166,14 +180,11 @@ class NodeRuntimeManager(
                 destFile.mkdirs()
                 copyAssetDirectory(subAssetPath, destFile)
             } else {
-                try {
-                    context.assets.open(subAssetPath).use { input ->
-                        FileOutputStream(destFile).use { output ->
-                            input.copyTo(output)
-                        }
+                context.assets.open(subAssetPath).use { input ->
+                    destFile.parentFile?.mkdirs()
+                    FileOutputStream(destFile).use { output ->
+                        input.copyTo(output)
                     }
-                } catch (e: Exception) {
-                    // Ignore directory open exception
                 }
             }
         }
