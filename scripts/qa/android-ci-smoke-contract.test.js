@@ -35,7 +35,7 @@ function mockHarness(t, apk=true, healthy=true) {
     "#!/bin/sh\nexit 22\n");
   chmodSync(fakeCurl,0o755);
   return {temp,run:()=>spawnSync("bash",[smoke],{
-    cwd:temp,encoding:"utf8",timeout:10000,
+    cwd:temp,encoding:"utf8",timeout:15000,
     env:{...process.env,PATH:bin+":"+process.env.PATH,MOCK_ADB_LOG:join(temp,"adb.log"),SMOKE_ATTEMPTS:"2",SMOKE_WAIT_SECONDS:"0"}
   })};
 }
@@ -46,7 +46,7 @@ test("CP16 emulator script actually installs, starts and probes backend",t=>{
   assert.equal(r.status,0,(r.stderr||"")+r.stdout);
   assert.match(r.stdout,/CP16_EMULATOR_RUNTIME_SMOKE_PASS/);
   assert.match(readFileSync(join(h.temp,"adb.log"),"utf8"),/install -r runtime-apk\/app-debug\.apk/);
-  assert.match(readFileSync(join(h.temp,"adb.log"),"utf8"),/am start -W -n com\.bossbayu\.aiteam\/\.MainActivity/);
+  assert.match(readFileSync(join(h.temp,"adb.log"),"utf8"),/am start -n com\.bossbayu\.aiteam\/\.MainActivity/);
   assert.equal(JSON.parse(readFileSync(join(h.temp,"runtime-status.json"),"utf8")).status,"ok");
 });
 
@@ -56,5 +56,5 @@ test("CP16 smoke fails closed for missing APK and unhealthy runtime",t=>{
   const unhealthy=mockHarness(t,true,false);
   const result=unhealthy.run();
   assert.equal(result.status,22,result.stderr);
-  assert.match(readFileSync(join(unhealthy.temp,"adb.log"),"utf8"),/logcat -d -t 900/);
+  assert.match(readFileSync(join(unhealthy.temp,"adb.log"),"utf8"),/logcat -v threadtime/);
 });

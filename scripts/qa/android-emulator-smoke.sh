@@ -1,58 +1,56 @@
 #!/usr/bin/env bash
-# CP16: use one Bash process because android-emulator-runner invokes each
-# script line independently as sh -c and otherwise loses shell variables.
 set -Eeuo pipefail
-
-capture_failure() {
+LOG_PID=""
+diagnostics() {
   local rc="$?"
+  trap - EXIT
+  adb shell pidof com.bossbayu.aiteam || true
+  adb shell pidof com.bossbayu.aiteam:engine || true
+  adb shell dumpsys activity activities >runtime-activities.txt 2>&1 || true
+  adb shell dumpsys activity services com.bossbayu.aiteam >runtime-services.txt 2>&1 || true
+  adb shell dumpsys package com.bossbayu.aiteam >runtime-package.txt 2>&1 || true
+  if [ -n "$LOG_PID" ]; then kill "$LOG_PID" 2>/dev/null || true; wait "$LOG_PID" 2>/dev/null || true; fi
   if [ "$rc" -ne 0 ]; then
-    printf '%s\n' "Android runtime smoke failed (exit $rc); collecting diagnostics" >&2
-    adb logcat -d -t 900 >runtime-logcat.txt 2>&1 || true
-    adb shell dumpsys activity services com.bossbayu.aiteam >&2 || true
-    tail -n 200 runtime-logcat.txt >&2 || true
+    echo "CP16_RUNTIME_FAILURE=$rc"
+    grep -Ein 'bossbayu|aiteam|AndroidRuntime|FATAL EXCEPTION|ANR in com.bossbayu|UnsatisfiedLinkError|dlopen failed|libnode|proot|Process.*died|Start proc' runtime-logcat.txt | tail -n 130 || true
   fi
+  exit "$rc"
 }
-trap capture_failure EXIT
-
+trap diagnostics EXIT
 APK="$(find runtime-apk -type f -name '*.apk' -print -quit)"
-if [ -z "$APK" ] || [ ! -s "$APK" ]; then
-  echo "Missing nonempty downloaded x86_64 debug APK under runtime-apk" >&2
-  exit 20
-fi
-echo "Installing: $APK"
+test -n "$APK" && test -s "$APK" || { echo "APK missing"; exit 20; }
+echo "INSTALL_START=$(date -u +%FT%TZ)"
 adb install -r "$APK"
 adb shell pm grant com.bossbayu.aiteam android.permission.POST_NOTIFICATIONS || true
 adb logcat -c
+adb logcat -v threadtime >runtime-logcat.txt 2>&1 &
+LOG_PID="$!"
+echo "APP_LAUNCH_START=$(date -u +%FT%TZ)"
 adb shell am force-stop com.bossbayu.aiteam || true
-adb shell am start -W -n com.bossbayu.aiteam/.MainActivity
+# am start -W may itself time out on software-only x86 emulation.
+adb shell am start -n com.bossbayu.aiteam/.MainActivity || true
 adb forward tcp:33000 tcp:3000
-
 attempts="$(printenv SMOKE_ATTEMPTS || echo 90)"
 wait_seconds="$(printenv SMOKE_WAIT_SECONDS || echo 2)"
-if ! [[ "$attempts" =~ ^[1-9][0-9]*$ ]] || [ "$attempts" -gt 180 ]; then
-  echo "Invalid SMOKE_ATTEMPTS" >&2
-  exit 21
-fi
-
+if ! [[ "$attempts" =~ ^[1-9][0-9]*$ ]] || ((attempts > 180)); then echo "Invalid SMOKE_ATTEMPTS" >&2; exit 21; fi
 ready=0
-for ((i=1; i<=attempts; i++)); do
-  if curl -fsS --max-time 3 http://127.0.0.1:33000/api/status >runtime-status.json; then
+for ((i=1;i<=attempts;i++)); do
+  if curl -fsS --max-time 3 http://127.0.0.1:33000/api/status >runtime-status.json 2>/dev/null; then
     ready=1
-    echo "Backend healthy on attempt $i"
+    echo "CP16_HEALTHY_ATTEMPT=$i"
     break
+  fi
+  if ((i % 10 == 0)); then
+    echo "CP16_WAIT_ATTEMPT=$i $(date -u +%FT%TZ)"
+    adb shell pidof com.bossbayu.aiteam || true
+    adb shell pidof com.bossbayu.aiteam:engine || true
   fi
   sleep "$wait_seconds"
 done
-
 if [ "$ready" -ne 1 ]; then
-  echo "Embedded backend unavailable after $attempts attempts" >&2
+  echo "CP16_BACKEND_UNAVAILABLE"
   exit 22
 fi
-
 test -s runtime-status.json
-cat runtime-status.json
 curl -fsS --max-time 5 http://127.0.0.1:33000/ >/dev/null
-adb shell pidof com.bossbayu.aiteam || true
-adb shell pidof com.bossbayu.aiteam:engine || true
-adb logcat -d -t 900 >runtime-logcat.txt || true
 echo "CP16_EMULATOR_RUNTIME_SMOKE_PASS"
