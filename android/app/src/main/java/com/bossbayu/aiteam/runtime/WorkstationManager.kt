@@ -106,7 +106,7 @@ class WorkstationManager(private val context: Context) {
 
     private fun extractAlpineFromAssets() {
         val arch = alpineArch()
-        val assetName = "alpine-minirootfs-$ALPINE_VERSION-$arch.tar.gz"
+        val assetName = "alpine-minirootfs-$ALPINE_VERSION-$arch.tgz"
         val assetPath = "rootfs/$assetName"
         val base = workstationsBaseDir
         val staging = File(base, ".alpine-staging-${System.nanoTime()}")
