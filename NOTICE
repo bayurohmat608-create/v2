@@ -22,12 +22,11 @@ THIRD-PARTY COMPONENTS AND PROVENANCE
    - Android uses the Linux musl packages for ARM64 and x86_64.
    - Packages are checksum-verified during the build.
 
-3. Google Antigravity CLI
-   - Android version pinned by this project: 1.3.1
-   - Android uses Google's Linux musl artifacts for ARM64 and x86_64.
-   - Release URLs and SHA-512 values are pinned from Google's official
-     Antigravity CLI update manifests.
-   - Use and redistribution remain subject to Google's applicable terms.
+3. Antigravity integration status
+   - Antigravity is not bundled, authenticated, or invoked by this project.
+   - The product intentionally does not provide a managed Antigravity engine.
+   - A general-purpose terminal remains available for user-controlled commands.
+
 
 4. Node.js Mobile runtime
    - Android runtime: nodejs-mobile 24.20.0-0 from the digidem/nodejs-mobile
@@ -93,5 +92,7 @@ The Android package contains components under several independent licenses and
 terms. Before public redistribution, store publication, or commercial release,
 review the complete upstream license texts, notices, source-offer obligations,
 and redistribution terms that apply to the exact packaged versions.
+
+Detailed build provenance and pinned digests are documented in THIRD_PARTY_RUNTIME.md.
 
 All third-party software remains the property of its respective owners.
