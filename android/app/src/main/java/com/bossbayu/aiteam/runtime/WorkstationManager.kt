@@ -39,7 +39,6 @@ class WorkstationManager(private val context: Context) {
 
         private const val CODEX_VERSION = "0.160.1"
         private const val OPENCODE_VERSION = "2.0.24"
-        private const val ANTIGRAVITY_VERSION = "1.3.1"
         private const val ENGINE_MARKER = ".engine-pack-version"
         private const val DEPS_MARKER = ".engine-deps-v1"
         private const val MAX_ENGINE_ARCHIVE_BYTES = 512L * 1024L * 1024L
@@ -47,8 +46,7 @@ class WorkstationManager(private val context: Context) {
 
 
     private enum class DigestEncoding {
-        BASE64,
-        HEX
+        BASE64
     }
 
     private data class EngineArtifact(
@@ -102,7 +100,7 @@ class WorkstationManager(private val context: Context) {
     private fun expectedAlpineMarker(): String = "alpine-$ALPINE_VERSION-${alpineArch()}"
 
     private fun expectedEngineMarker(): String =
-        "codex=$CODEX_VERSION;opencode=$OPENCODE_VERSION;antigravity=$ANTIGRAVITY_VERSION;arch=${alpineArch()}"
+        "codex=$CODEX_VERSION;opencode=$OPENCODE_VERSION;arch=${alpineArch()}"
 
     fun isAlpineInstalled(): Boolean {
         return File(alpineDir, "bin/sh").isFile &&
@@ -279,14 +277,7 @@ class WorkstationManager(private val context: Context) {
                     "https://registry.npmjs.org/@opencode/cli-linux-arm64-musl/-/cli-linux-arm64-musl-$OPENCODE_VERSION.tgz",
                     "DfL6bISz9udxWU5AIEocMjDLnpgtWGfx5sw7fXKpLUhBFhsjdBOkCrBYuDBFuPwJoe5VJPdF+A/OoTfe+Wi6XA==",
                     DigestEncoding.BASE64
-                ),
-                EngineArtifact(
-                    "Google Antigravity",
-                    "antigravity-$ANTIGRAVITY_VERSION.tgz",
-                    "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.1-4582356770750464/linux-arm-musl/cli_linux_arm64_musl.tar.gz",
-                    "894f8e980020676966f0610122a3f15207e2cd82eb73bfe856418c32623e53c7e8762df3753fab374ee95d92fb8eb42e21260e2c7793e19e7f1c55905f3f6a5c",
-                    DigestEncoding.HEX
-                )
+)
             )
 
             "x86_64" -> listOf(
@@ -303,14 +294,7 @@ class WorkstationManager(private val context: Context) {
                     "https://registry.npmjs.org/@opencode/cli-linux-x64-musl/-/cli-linux-x64-musl-$OPENCODE_VERSION.tgz",
                     "PK2cEuioc9181iPYtwzLC4XqBjKMTjcO/5PNOvpM41mEgsyPTYfhX+IqgYcgvNEK1BPp/8oAl62xkMgBSxlupg==",
                     DigestEncoding.BASE64
-                ),
-                EngineArtifact(
-                    "Google Antigravity",
-                    "antigravity-$ANTIGRAVITY_VERSION.tgz",
-                    "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.1-4582356770750464/linux-x64-musl/cli_linux_x64_musl.tar.gz",
-                    "027b7169b29d9d1aa80bd28d8d2defa9ef50353bcc194c5e46d1315fafe29cf74624e8e24e8ad0d7eaa3e2651f5c70ae8f40d14a0a04db68f027feac1edcce1d",
-                    DigestEncoding.HEX
-                )
+)
             )
 
             else -> error("Unsupported engine architecture: $arch")
@@ -370,19 +354,11 @@ class WorkstationManager(private val context: Context) {
                 if (entryName == "package/bin/opencode") "bin/opencode" else null
             }
 
-            extractTarGzFile(
-                archives.getValue(artifacts[2]),
-                File(staging, "antigravity")
-            ) { entryName, _ ->
-                if (entryName == "antigravity") "bin/agy" else null
-            }
-
             listOf(
                 File(staging, "codex/vendor/$triple/bin/codex"),
                 File(staging, "codex/vendor/$triple/bin/codex-code-mode-host"),
                 File(staging, "codex/vendor/$triple/codex-resources/bwrap"),
-                File(staging, "opencode/bin/opencode"),
-                File(staging, "antigravity/bin/agy")
+                File(staging, "opencode/bin/opencode")
             ).forEach { executable ->
                 check(executable.isFile) {
                     "Engine payload tidak lengkap: ${executable.absolutePath}"
@@ -411,11 +387,6 @@ class WorkstationManager(private val context: Context) {
                 File(binDir, "opencode"),
                 "../engines/opencode/bin/opencode"
             )
-            createRelativeSymlink(
-                File(binDir, "agy"),
-                "../engines/antigravity/bin/agy"
-            )
-
             cacheDir.deleteRecursively()
             onProgress("Engine AI siap.")
             Log.i(TAG, "Verified AI engine pack ready for $arch.")
@@ -519,7 +490,6 @@ class WorkstationManager(private val context: Context) {
         val bytes = digest.digest()
         val actual = when (artifact.encoding) {
             DigestEncoding.BASE64 -> Base64.getEncoder().encodeToString(bytes)
-            DigestEncoding.HEX -> bytes.joinToString("") { "%02x".format(it) }
         }
 
         return MessageDigest.isEqual(
