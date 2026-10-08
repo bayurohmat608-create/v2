@@ -189,40 +189,9 @@ jobs:
           target: default
           profile: pixel_6
           disable-animations: true
-          script: |
-            # android-emulator-runner executes this command through /bin/sh.
-            # POSIX sh has no pipefail; using it aborted CI before app startup.
-            set -eu
-            APK="$(find runtime-apk -type f -name '*.apk' | head -1)"
-            test -f "$APK"
-            adb install -r "$APK"
-            adb shell pm grant com.bossbayu.aiteam android.permission.POST_NOTIFICATIONS || true
-            adb logcat -c
-            adb shell am force-stop com.bossbayu.aiteam || true
-            adb shell am start -W -n com.bossbayu.aiteam/.MainActivity
-            adb forward tcp:33000 tcp:3000
-
-            ready=0
-            for attempt in $(seq 1 90); do
-              if curl -fsS --max-time 3 http://127.0.0.1:33000/api/status > runtime-status.json; then
-                ready=1
-                break
-              fi
-              sleep 2
-            done
-
-            adb logcat -d -t 600 > runtime-logcat.txt || true
-            if [ "$ready" -ne 1 ]; then
-              echo "Embedded backend did not become healthy within 180 seconds." >&2
-              adb shell dumpsys activity services com.bossbayu.aiteam || true
-              tail -300 runtime-logcat.txt || true
-              exit 1
-            fi
-
-            cat runtime-status.json
-            curl -fsS --max-time 5 http://127.0.0.1:33000/ >/dev/null
-            adb shell pidof com.bossbayu.aiteam || true
-            adb shell pidof com.bossbayu.aiteam:engine || true
+          # The action runs each script line as its own sh -c invocation;
+          # use one Bash process to preserve APK, ready, and trap state.
+          script: bash scripts/qa/android-emulator-smoke.sh
 
       - name: Upload runtime smoke evidence
         if: always()
