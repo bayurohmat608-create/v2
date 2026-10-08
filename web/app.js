@@ -678,7 +678,7 @@ const PROVIDER_LOGOS = {
 };
 
 const PROVIDER_META = {
-  google: { name: "Google", sub: "Antigravity · Gemini Pro/Ultra", bg: "bg-google" },
+  google: { name: "Google", sub: "Models via supported providers", bg: "bg-google" },
   openai: { name: "OpenAI", sub: "Codex · ChatGPT Plus/Pro", bg: "bg-openai" },
   opencode: { name: "opencode", sub: "Community · Gratis", bg: "bg-opencode" }
 };
@@ -3062,7 +3062,7 @@ function populateSettingsModal() {
   appState.availableModels.forEach(m => {
     const grpName = m.group || (
       (m.id.startsWith("codex/") || m.engine === "codex") ? "OpenAI Codex Models" :
-      ((m.id.startsWith("opencode/") || m.engine === "opencode") ? "Opencode Community Models" : "Antigravity Models")
+      ((m.id.startsWith("opencode/") || m.engine === "opencode") ? "Opencode Community Models" : "Provider Models")
     );
     if (!groups[grpName]) groups[grpName] = [];
     groups[grpName].push(m);
