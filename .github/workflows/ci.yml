@@ -48,10 +48,20 @@ jobs:
             exit 1
           fi
 
-          if grep -Eiq '(execFile|spawn|spawnSync|spawnEngine)\([^\n]*["'\''']agy["'\''']' server.js; then
-            echo "Backend must not invoke Antigravity CLI as a managed engine." >&2
-            exit 1
-          fi
+          for needle in \
+            'execFile("agy"' \
+            "execFile('agy'" \
+            'spawn("agy"' \
+            "spawn('agy'" \
+            'spawnSync("agy"' \
+            "spawnSync('agy'" \
+            'spawnEngine("agy"' \
+            "spawnEngine('agy'"; do
+            if grep -Fq "$needle" server.js; then
+              echo "Backend must not invoke Antigravity CLI as a managed engine: $needle" >&2
+              exit 1
+            fi
+          done
 
       - name: Runtime doctor
         run: npm run doctor
