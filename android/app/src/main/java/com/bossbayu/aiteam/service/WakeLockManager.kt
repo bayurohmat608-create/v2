@@ -22,6 +22,7 @@ class WakeLockManager(private val context: Context) {
         private const val TAG = "WakeLockManager"
         private const val WAKE_LOCK_TAG = "WhatsAppAITeam::EngineWakeLock"
         private const val WIFI_LOCK_TAG = "WhatsAppAITeam::EngineWifiLock"
+        private const val WAKELOCK_TIMEOUT_MS = 8L * 60L * 60L * 1000L
     }
 
     @Synchronized
@@ -33,8 +34,8 @@ class WakeLockManager(private val context: Context) {
                     WAKE_LOCK_TAG
                 )?.apply {
                     setReferenceCounted(false)
-                    acquire()
-                    Log.d(TAG, "CPU PARTIAL_WAKE_LOCK acquired.")
+                    acquire(WAKELOCK_TIMEOUT_MS)
+                    Log.d(TAG, "CPU PARTIAL_WAKE_LOCK acquired with timeout.")
                 }
             }
 
