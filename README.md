@@ -88,11 +88,18 @@ Current build baseline:
 - Gradle 8.13
 - Supported APK ABIs: `arm64-v8a` and `x86_64`
 
-Build:
+Build ARM64 (default):
 
 ```bash
 cd android
 ./gradlew lintDebug assembleDebug
+```
+
+Build x86_64 (useful for emulator/CI):
+
+```bash
+cd android
+./gradlew -PruntimeAbi=x86_64 lintDebug assembleDebug
 ```
 
 The Android build is intentionally self-contained at the runtime layer:
@@ -100,13 +107,13 @@ The Android build is intentionally self-contained at the runtime layer:
 - **Node.js backend:** embedded Node.js Mobile 24.20.0-0 loaded through JNI from APK native libraries. No Node executable is copied to writable app storage.
 - **Linux workstation:** PRoot 5.1.107.96 executes from Android's native library area with an APK-resident loader. PRoot is packaged with private dynamic `talloc` and `libandroid-shmem` dependencies.
 - **Root filesystem:** official Alpine Linux 3.24.2 minirootfs for ARM64/x86_64. Gradle verifies the official SHA-256 before packaging.
-- **AI engines:** Codex 0.160.1 and OpenCode 2.0.24 musl are downloaded from pinned upstream artifacts and verified during the build.
+- **AI engines:** Codex 0.160.1 and OpenCode 2.0.24 musl are provisioned on demand for the device ABI. The app downloads pinned HTTPS artifacts, verifies their SHA-512 before extraction, and installs them only inside the app-private Alpine rootfs.
 - **Guest dependencies:** on first provisioning, Alpine installs small native dependencies such as CA certificates, `libstdc++`, `ripgrep`, `zsh`, `git`, `bash`, and `curl`. This step requires network access to the configured Alpine repositories.
 - **Canonical assets:** Android packages the root `server.js`, `cli.js`, `web/`, and `personas/` at build time, so the APK and desktop runtime share one backend source of truth.
 
 The embedded backend runs in the dedicated Android `:engine` process. AI CLI execution on Android is routed through the verified PRoot + Alpine workstation and bind-mounts only the required runtime/workspace paths. The native Android terminal uses the same PRoot workstation. Raw shell execution over `/api/terminal/exec` remains disabled.
 
-Because two large native AI CLIs are bundled for two ABIs, a universal debug APK is intentionally large. Production distribution should prefer Android App Bundles / ABI-specific delivery so each device receives only its architecture.
+The Gradle property `runtimeAbi` selects exactly one packaged ABI per APK; it defaults to `arm64-v8a`. AI engine archives are not bundled in the APK, which keeps the base package much smaller and avoids shipping an unused architecture. Production distribution should still prefer Android App Bundles / ABI-specific delivery.
 
 ## Antigravity policy
 
