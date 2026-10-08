@@ -1,3 +1,5 @@
+> **V2 project source of truth:** [Master Blueprint](docs/BLUEPRINT_MASTER_V2.md) · [✅ Checkpoint Tracker](docs/CHECKPOINT_TRACKER.md) · [Session Handoff](docs/SESSION_HANDOFF.md) · [Checkpoint Index](checkpoints/INDEX.md). Progress is evidence-based and updated in the same commit as source changes.
+
 # WhatsApp AI Team v2 — Budi & Rian
 
 Standalone local-first AI team workspace with a WhatsApp-inspired web interface, terminal TUI, native Android host, and two managed AI CLI engines: OpenAI Codex and OpenCode.

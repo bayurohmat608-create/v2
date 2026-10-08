@@ -42,3 +42,10 @@ The legacy V2 `/api/chats` still exposes all existing Budi/Rian conversations to
 - The branch can be removed without editing the original Android source or V1 chat history.
 - A new job or chat request to `direct_zovia` returns `AGENT_NOT_READY` and does not mutate stored history.
 - Do not ship `/api/team` metadata as evidence of an active Zovia engine.
+
+## CP19 continuation: private room
+- ✅ [x] Added agent/private-room-store.js (restricted owner/Zovia, 0600 file, 0700 parent, atomic stage/replace, idempotent IDs).
+- ✅ [x] scripts/qa/private-room-store.test.js covers persistence after restart, denial, tamper/symlink and bounds.
+- ⬜ [ ] Not yet exposed via authenticated live HTTP/SSE endpoints. Zovia chat requests remain HTTP 409.
+- ⬜ [ ] Actual Zovia engine and WhatsApp UI integration not yet implemented.
+- Active branch for this continuation is feature/v2-blueprint-tracker-cp19-cp20-20261008, with isolated worktree /home/sprite/v2-checkpoints-20261008.
