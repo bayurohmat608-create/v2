@@ -37,7 +37,7 @@ git push origin HEAD
 NOTES="WhatsApp AI Team v2
 
 - Runtime state terisolasi di .runtime/
-- Engine health-check: Antigravity, OpenCode, Codex
+- Engine health-check: OpenCode, Codex
 - Android target API 36
 - Raw terminal HTTP dinonaktifkan; Android memakai terminal native
 - Smoke test dan Android build diverifikasi sebelum rilis"
