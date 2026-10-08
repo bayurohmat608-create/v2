@@ -35,6 +35,9 @@ class EngineForegroundService : Service() {
     private lateinit var nodeRuntimeManager: NodeRuntimeManager
     private lateinit var prootManager: PRootManager
     private lateinit var workstationManager: WorkstationManager
+    private var engineJob: Job? = null
+    @Volatile
+    private var stopRequested: Boolean = false
 
     companion object {
         private const val TAG = "EngineForegroundService"
@@ -72,6 +75,8 @@ class EngineForegroundService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 Log.i(TAG, "Explicit engine stop requested.")
+                stopRequested = true
+                engineJob?.cancel()
                 nodeRuntimeManager.stopServer()
                 wakeLockManager.release()
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -94,23 +99,32 @@ class EngineForegroundService : Service() {
                     NOTIFICATION_ID,
                     createNotification("Memulai embedded Node.js...")
                 )
-                startEngine()
+                if (engineJob?.isActive == true) {
+                    updateNotification("Runtime sedang disiapkan...")
+                } else {
+                    stopRequested = false
+                    startEngine()
+                }
             }
         }
         return START_STICKY
     }
 
     private fun startEngine() {
+        if (engineJob?.isActive == true) return
+
         wakeLockManager.acquire()
 
-        serviceScope.launch {
+        engineJob = serviceScope.launch {
             try {
                 updateNotification("Menyiapkan Alpine Linux...")
                 workstationManager.ensureWorkstationsReady()
+                if (stopRequested) return@launch
 
                 val enginesReady = workstationManager.ensureEnginePackReady { status ->
-                    updateNotification(status)
+                    if (!stopRequested) updateNotification(status)
                 }
+                if (stopRequested) return@launch
 
                 val depsReady = if (enginesReady) {
                     updateNotification("Menyiapkan dependency engine Linux...")
@@ -118,6 +132,7 @@ class EngineForegroundService : Service() {
                 } else {
                     false
                 }
+                if (stopRequested) return@launch
 
                 if (!enginesReady) {
                     Log.w(TAG, "Engine pack belum siap; backend tetap start dalam mode degraded.")
@@ -127,6 +142,11 @@ class EngineForegroundService : Service() {
 
                 updateNotification("Memulai embedded Node.js...")
                 val port = nodeRuntimeManager.startServer()
+                if (stopRequested) {
+                    nodeRuntimeManager.stopServer()
+                    return@launch
+                }
+
                 val suffix = when {
                     !enginesReady -> " · engine perlu diunduh ulang"
                     !depsReady -> " · dependency engine perlu retry"
@@ -134,8 +154,12 @@ class EngineForegroundService : Service() {
                 }
                 updateNotification("Server lokal aktif di 127.0.0.1:$port$suffix")
             } catch (e: Exception) {
-                Log.e(TAG, "Engine start failed: ${e.message}", e)
-                updateNotification("Runtime error: ${e.message ?: "unknown"}")
+                if (!stopRequested) {
+                    Log.e(TAG, "Engine start failed: ${e.message}", e)
+                    updateNotification("Runtime error: ${e.message ?: "unknown"}")
+                }
+            } finally {
+                engineJob = null
             }
         }
     }
@@ -181,6 +205,8 @@ class EngineForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        stopRequested = true
+        engineJob?.cancel()
         wakeLockManager.release()
         serviceScope.cancel()
         super.onDestroy()
