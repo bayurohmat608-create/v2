@@ -33,7 +33,6 @@ class WorkstationManager(private val context: Context) {
 
         private const val CODEX_VERSION = "0.160.1"
         private const val OPENCODE_VERSION = "2.0.24"
-        private const val ANTIGRAVITY_VERSION = "1.3.1"
         private const val ENGINE_MARKER = ".engine-pack-version"
         private const val DEPS_MARKER = ".engine-deps-v1"
     }
@@ -81,7 +80,7 @@ class WorkstationManager(private val context: Context) {
     private fun expectedAlpineMarker(): String = "alpine-$ALPINE_VERSION-${alpineArch()}"
 
     private fun expectedEngineMarker(): String =
-        "codex=$CODEX_VERSION;opencode=$OPENCODE_VERSION;antigravity=$ANTIGRAVITY_VERSION;arch=${alpineArch()}"
+        "codex=$CODEX_VERSION;opencode=$OPENCODE_VERSION;arch=${alpineArch()}"
 
     fun isAlpineInstalled(): Boolean {
         return File(alpineDir, "bin/sh").isFile &&
@@ -276,13 +275,6 @@ class WorkstationManager(private val context: Context) {
                 if (entryName == "package/bin/opencode") "bin/opencode" else null
             }
 
-            extractTarGzAsset(
-                assetPath = "engines/$arch/antigravity-$ANTIGRAVITY_VERSION.tgz",
-                targetRoot = File(staging, "antigravity")
-            ) { entryName, _ ->
-                if (entryName == "antigravity") "bin/agy" else null
-            }
-
             listOf(
                 File(staging, "codex/vendor/$triple/bin/codex"),
                 File(staging, "codex/vendor/$triple/bin/codex-code-mode-host"),
@@ -316,10 +308,6 @@ class WorkstationManager(private val context: Context) {
             createRelativeSymlink(
                 File(binDir, "opencode"),
                 "../engines/opencode/bin/opencode"
-            )
-            createRelativeSymlink(
-                File(binDir, "agy"),
-                "../engines/antigravity/bin/agy"
             )
 
             Log.i(TAG, "Bundled AI engine pack ready for $arch.")
