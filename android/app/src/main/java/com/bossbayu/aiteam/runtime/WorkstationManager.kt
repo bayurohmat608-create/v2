@@ -39,6 +39,7 @@ class WorkstationManager(private val context: Context) {
 
         private const val CODEX_VERSION = "0.160.1"
         private const val OPENCODE_VERSION = "2.0.24"
+        private const val ANTIGRAVITY_VERSION = "1.3.1"
         private const val ENGINE_MARKER = ".engine-pack-version"
         private const val DEPS_MARKER = ".engine-deps-v1"
         private const val MAX_ENGINE_ARCHIVE_BYTES = 512L * 1024L * 1024L
@@ -100,7 +101,7 @@ class WorkstationManager(private val context: Context) {
     private fun expectedAlpineMarker(): String = "alpine-$ALPINE_VERSION-${alpineArch()}"
 
     private fun expectedEngineMarker(): String =
-        "codex=$CODEX_VERSION;opencode=$OPENCODE_VERSION;arch=${alpineArch()}"
+        "codex=$CODEX_VERSION;opencode=$OPENCODE_VERSION;antigravity=$ANTIGRAVITY_VERSION;arch=${alpineArch()}"
 
     fun isAlpineInstalled(): Boolean {
         return File(alpineDir, "bin/sh").isFile &&
@@ -297,7 +298,14 @@ class WorkstationManager(private val context: Context) {
                     "https://registry.npmjs.org/@opencode/cli-linux-arm64-musl/-/cli-linux-arm64-musl-$OPENCODE_VERSION.tgz",
                     "DfL6bISz9udxWU5AIEocMjDLnpgtWGfx5sw7fXKpLUhBFhsjdBOkCrBYuDBFuPwJoe5VJPdF+A/OoTfe+Wi6XA==",
                     DigestEncoding.BASE64
-)
+                ),
+                EngineArtifact(
+                    "Google Antigravity",
+                    "antigravity-$ANTIGRAVITY_VERSION.tgz",
+                    "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.1-4582356770750464/linux-arm-musl/cli_linux_arm64_musl.tar.gz",
+                    "iU+OmAAgZ2lm8GEBIqPxUgfizYLrc7/oVkGMMmI+U8fodi3zdT+rN07pXZL7jrQuISYOLHeT4Z5/HFWQXz9qXA==",
+                    DigestEncoding.BASE64
+                )
             )
 
             "x86_64" -> listOf(
@@ -314,7 +322,14 @@ class WorkstationManager(private val context: Context) {
                     "https://registry.npmjs.org/@opencode/cli-linux-x64-musl/-/cli-linux-x64-musl-$OPENCODE_VERSION.tgz",
                     "PK2cEuioc9181iPYtwzLC4XqBjKMTjcO/5PNOvpM41mEgsyPTYfhX+IqgYcgvNEK1BPp/8oAl62xkMgBSxlupg==",
                     DigestEncoding.BASE64
-)
+                ),
+                EngineArtifact(
+                    "Google Antigravity",
+                    "antigravity-$ANTIGRAVITY_VERSION.tgz",
+                    "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.1-4582356770750464/linux-x64-musl/cli_linux_x64_musl.tar.gz",
+                    "AntxabKdnRqoC9KNjS3vqe9QNTvMGUxeRtExX6/inPdGJOjiTorQ1+qj4mUfXHCuj0DRSgoE22jwJ/6sHtzOHQ==",
+                    DigestEncoding.BASE64
+                )
             )
 
             else -> error("Unsupported engine architecture: $arch")
@@ -374,11 +389,19 @@ class WorkstationManager(private val context: Context) {
                 if (entryName == "package/bin/opencode") "bin/opencode" else null
             }
 
+            extractTarGzFile(
+                archives.getValue(artifacts[2]),
+                File(staging, "antigravity")
+            ) { entryName, _ ->
+                if (entryName == "antigravity") "bin/agy" else null
+            }
+
             listOf(
                 File(staging, "codex/vendor/$triple/bin/codex"),
                 File(staging, "codex/vendor/$triple/bin/codex-code-mode-host"),
                 File(staging, "codex/vendor/$triple/codex-resources/bwrap"),
-                File(staging, "opencode/bin/opencode")
+                File(staging, "opencode/bin/opencode"),
+                File(staging, "antigravity/bin/agy")
             ).forEach { executable ->
                 check(executable.isFile) {
                     "Engine payload tidak lengkap: ${executable.absolutePath}"
@@ -406,6 +429,10 @@ class WorkstationManager(private val context: Context) {
             createRelativeSymlink(
                 File(binDir, "opencode"),
                 "../engines/opencode/bin/opencode"
+            )
+            createRelativeSymlink(
+                File(binDir, "agy"),
+                "../engines/antigravity/bin/agy"
             )
             cacheDir.deleteRecursively()
             onProgress("Engine AI siap.")
