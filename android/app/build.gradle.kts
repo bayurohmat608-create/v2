@@ -73,9 +73,10 @@ val prepareAlpineRootfs by tasks.registering {
         targetDir.mkdirs()
 
         alpineRootfsSha256.forEach { (arch, expectedSha) ->
-            val filename = "alpine-minirootfs-$alpineVersion-$arch.tar.gz"
-            val output = File(targetDir, filename)
-            val url = "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/$arch/$filename"
+            val remoteFilename = "alpine-minirootfs-$alpineVersion-$arch.tar.gz"
+            val assetFilename = "alpine-minirootfs-$alpineVersion-$arch.tgz"
+            val output = File(targetDir, assetFilename)
+            val url = "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/$arch/$remoteFilename"
 
             if (!output.exists() || sha256(output) != expectedSha) {
                 output.delete()
