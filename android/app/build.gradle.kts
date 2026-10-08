@@ -1,6 +1,7 @@
 import java.io.File
 import java.net.URI
 import java.security.MessageDigest
+import java.util.Base64
 
 plugins {
     alias(libs.plugins.android.application)
@@ -20,6 +21,61 @@ val alpineRootfsSha256 = mapOf(
 )
 val alpineRootfsDir = layout.buildDirectory.dir("alpine-rootfs")
 
+val androidEngineDir = layout.buildDirectory.dir("android-engines")
+
+data class AndroidEngineArtifact(
+    val arch: String,
+    val filename: String,
+    val url: String,
+    val sha512: String,
+    val sha512Encoding: String
+)
+
+val androidEngineArtifacts = listOf(
+    AndroidEngineArtifact(
+        "aarch64",
+        "codex-0.160.1.tgz",
+        "https://registry.npmjs.org/@openai/codex/-/codex-0.160.1-linux-arm64.tgz",
+        "JLyjBlmjPvwTaicHemw+y5xQSz3Uja2r7F/xkvS8gFufTA2g132Ak+0fo35xnJ/k2uc9fTtjm0LrsEGI78L6Ng==",
+        "base64"
+    ),
+    AndroidEngineArtifact(
+        "x86_64",
+        "codex-0.160.1.tgz",
+        "https://registry.npmjs.org/@openai/codex/-/codex-0.160.1-linux-x64.tgz",
+        "sIDhqV+bsZKKVaVFVY5iB+pAzyOz2XRm3H1KXCsSJwGj5p98qnrT0Fweo1Hfe7WnyTp8mfBNdbVzUeO+mHYugA==",
+        "base64"
+    ),
+    AndroidEngineArtifact(
+        "aarch64",
+        "opencode-2.0.24.tgz",
+        "https://registry.npmjs.org/@opencode/cli-linux-arm64-musl/-/cli-linux-arm64-musl-2.0.24.tgz",
+        "DfL6bISz9udxWU5AIEocMjDLnpgtWGfx5sw7fXKpLUhBFhsjdBOkCrBYuDBFuPwJoe5VJPdF+A/OoTfe+Wi6XA==",
+        "base64"
+    ),
+    AndroidEngineArtifact(
+        "x86_64",
+        "opencode-2.0.24.tgz",
+        "https://registry.npmjs.org/@opencode/cli-linux-x64-musl/-/cli-linux-x64-musl-2.0.24.tgz",
+        "PK2cEuioc9181iPYtwzLC4XqBjKMTjcO/5PNOvpM41mEgsyPTYfhX+IqgYcgvNEK1BPp/8oAl62xkMgBSxlupg==",
+        "base64"
+    ),
+    AndroidEngineArtifact(
+        "aarch64",
+        "antigravity-1.3.1.tgz",
+        "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.1-4582356770750464/linux-arm-musl/cli_linux_arm64_musl.tar.gz",
+        "894f8e980020676966f0610122a3f15207e2cd82eb73bfe856418c32623e53c7e8762df3753fab374ee95d92fb8eb42e21260e2c7793e19e7f1c55905f3f6a5c",
+        "hex"
+    ),
+    AndroidEngineArtifact(
+        "x86_64",
+        "antigravity-1.3.1.tgz",
+        "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.3.1-4582356770750464/linux-x64-musl/cli_linux_x64_musl.tar.gz",
+        "027b7169b29d9d1aa80bd28d8d2defa9ef50353bcc194c5e46d1315fafe29cf74624e8e24e8ad0d7eaa3e2651f5c70ae8f40d14a0a04db68f027feac1edcce1d",
+        "hex"
+    )
+)
+
 fun sha256(file: File): String {
     val digest = MessageDigest.getInstance("SHA-256")
     file.inputStream().use { input ->
@@ -31,6 +87,32 @@ fun sha256(file: File): String {
         }
     }
     return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+fun sha512Hex(file: File): String {
+    val digest = MessageDigest.getInstance("SHA-512")
+    file.inputStream().use { input ->
+        val buffer = ByteArray(1024 * 1024)
+        while (true) {
+            val read = input.read(buffer)
+            if (read <= 0) break
+            digest.update(buffer, 0, read)
+        }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+fun sha512Base64(file: File): String {
+    val digest = MessageDigest.getInstance("SHA-512")
+    file.inputStream().use { input ->
+        val buffer = ByteArray(1024 * 1024)
+        while (true) {
+            val read = input.read(buffer)
+            if (read <= 0) break
+            digest.update(buffer, 0, read)
+        }
+    }
+    return Base64.getEncoder().encodeToString(digest.digest())
 }
 
 val prepareNodeMobile by tasks.registering {
@@ -93,6 +175,44 @@ val prepareAlpineRootfs by tasks.registering {
     }
 }
 
+val prepareAndroidEngines by tasks.registering {
+    inputs.property("engineArtifacts", androidEngineArtifacts.joinToString("|") {
+        "${it.arch}:${it.filename}:${it.sha512}"
+    })
+    outputs.dir(androidEngineDir)
+
+    doLast {
+        val targetRoot = androidEngineDir.get().asFile
+        targetRoot.mkdirs()
+
+        androidEngineArtifacts.forEach { artifact ->
+            val archDir = File(targetRoot, artifact.arch).apply { mkdirs() }
+            val output = File(archDir, artifact.filename)
+
+            fun verified(): Boolean {
+                if (!output.isFile) return false
+                val actual = if (artifact.sha512Encoding == "base64") {
+                    sha512Base64(output)
+                } else {
+                    sha512Hex(output)
+                }
+                return actual == artifact.sha512
+            }
+
+            if (!verified()) {
+                output.delete()
+                URI(artifact.url).toURL().openStream().use { input ->
+                    output.outputStream().use { stream -> input.copyTo(stream) }
+                }
+            }
+
+            check(verified()) {
+                "Engine checksum mismatch for ${artifact.arch}/${artifact.filename}"
+            }
+        }
+    }
+}
+
 val generatedRuntimeAssets = layout.buildDirectory.dir("generated/runtimeAssets")
 
 val syncRuntimeAssets by tasks.registering(Sync::class) {
@@ -105,10 +225,11 @@ val syncRuntimeAssets by tasks.registering(Sync::class) {
     from(repoRoot.resolve("personas")) { into("server/personas") }
     from(repoRoot.resolve("web")) { into("web") }
     from(alpineRootfsDir) { into("rootfs") }
+    from(androidEngineDir) { into("engines") }
 }
 
 syncRuntimeAssets.configure {
-    dependsOn(prepareAlpineRootfs)
+    dependsOn(prepareAlpineRootfs, prepareAndroidEngines)
 }
 
 android {
@@ -208,7 +329,7 @@ dependencies {
 
 
 tasks.named("preBuild").configure {
-    dependsOn(syncRuntimeAssets, prepareNodeMobile, prepareAlpineRootfs)
+    dependsOn(syncRuntimeAssets, prepareNodeMobile, prepareAlpineRootfs, prepareAndroidEngines)
 }
 
 tasks.configureEach {
