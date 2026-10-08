@@ -456,62 +456,97 @@ class WorkstationManager(private val context: Context) {
         }
 
         destination.delete()
-        val partial = File(cacheDir, artifact.filename + ".part")
-        partial.delete()
+        var lastError: Throwable? = null
 
-        onProgress("Mengunduh ${artifact.label}...")
+        for (attempt in 1..3) {
+            val partial = File(cacheDir, artifact.filename + ".part")
+            partial.delete()
 
-        val connection = openHttpsConnection(artifact.url)
+            onProgress(
+                if (attempt == 1) "Mengunduh ${artifact.label}..."
+                else "Mengulang ${artifact.label} (percobaan $attempt/3)..."
+            )
 
-        try {
-            val code = connection.responseCode
-            check(code in 200..299) {
-                "${artifact.label}: HTTP $code"
-            }
+            var connection: HttpURLConnection? = null
+            try {
+                connection = openHttpsConnection(artifact.url)
 
-            val expectedLength = connection.contentLengthLong
-            check(expectedLength <= 0 || expectedLength <= MAX_ENGINE_ARCHIVE_BYTES) {
-                "${artifact.label}: archive terlalu besar ($expectedLength bytes)"
-            }
+                val code = connection.responseCode
+                check(code in 200..299) {
+                    "${artifact.label}: HTTP $code"
+                }
 
-            var downloadedBytes = 0L
-            var nextProgressAt = 8L * 1024L * 1024L
+                val expectedLength = connection.contentLengthLong
+                check(expectedLength <= 0 || expectedLength <= MAX_ENGINE_ARCHIVE_BYTES) {
+                    "${artifact.label}: archive terlalu besar ($expectedLength bytes)"
+                }
 
-            connection.inputStream.use { input ->
-                FileOutputStream(partial).use { output ->
-                    val buffer = ByteArray(128 * 1024)
-                    while (true) {
-                        val read = input.read(buffer)
-                        if (read <= 0) break
-                        downloadedBytes += read
-                        check(downloadedBytes <= MAX_ENGINE_ARCHIVE_BYTES) {
-                            "${artifact.label}: download melewati batas ukuran."
+                var downloadedBytes = 0L
+                var nextProgressAt = 8L * 1024L * 1024L
+
+                connection.inputStream.use { input ->
+                    FileOutputStream(partial).use { output ->
+                        val buffer = ByteArray(128 * 1024)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read <= 0) break
+
+                            downloadedBytes += read
+                            check(downloadedBytes <= MAX_ENGINE_ARCHIVE_BYTES) {
+                                "${artifact.label}: download melewati batas ukuran."
+                            }
+
+                            output.write(buffer, 0, read)
+
+                            if (downloadedBytes >= nextProgressAt) {
+                                val mib = downloadedBytes / (1024L * 1024L)
+                                onProgress("Mengunduh ${artifact.label}: $mib MiB")
+                                nextProgressAt += 8L * 1024L * 1024L
+                            }
                         }
-                        output.write(buffer, 0, read)
-
-                        if (downloadedBytes >= nextProgressAt) {
-                            val mib = downloadedBytes / (1024L * 1024L)
-                            onProgress("Mengunduh ${artifact.label}: $mib MiB")
-                            nextProgressAt += 8L * 1024L * 1024L
-                        }
+                        output.fd.sync()
                     }
                 }
-            }
 
-            check(verifySha512(partial, artifact)) {
-                "${artifact.label}: SHA-512 tidak cocok."
-            }
+                check(expectedLength <= 0 || downloadedBytes == expectedLength) {
+                    "${artifact.label}: download terpotong ($downloadedBytes/$expectedLength bytes)."
+                }
 
-            if (!partial.renameTo(destination)) {
-                partial.copyTo(destination, overwrite = true)
+                check(verifySha512(partial, artifact)) {
+                    "${artifact.label}: SHA-512 tidak cocok."
+                }
+
+                if (!partial.renameTo(destination)) {
+                    partial.copyTo(destination, overwrite = true)
+                    partial.delete()
+                }
+
+                check(verifySha512(destination, artifact)) {
+                    "${artifact.label}: verifikasi pasca-pindah gagal."
+                }
+
+                return destination
+            } catch (e: Throwable) {
+                lastError = e
                 partial.delete()
-            }
 
-            return destination
-        } finally {
-            connection.disconnect()
-            if (!destination.exists()) partial.delete()
+                if (attempt < 3) {
+                    Log.w(
+                        TAG,
+                        "${artifact.label} download attempt $attempt failed: ${e.message}"
+                    )
+                    Thread.sleep(attempt * 1_500L)
+                }
+            } finally {
+                connection?.disconnect()
+            }
         }
+
+        destination.delete()
+        throw IllegalStateException(
+            "${artifact.label}: gagal diunduh dan diverifikasi setelah 3 percobaan.",
+            lastError
+        )
     }
 
     private fun openHttpsConnection(rawUrl: String): HttpURLConnection {
