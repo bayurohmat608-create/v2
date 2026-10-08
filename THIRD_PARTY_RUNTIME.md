@@ -16,9 +16,10 @@ It is a build/provenance record, not a replacement for upstream license texts.
 - x86_64 npm integrity SHA-512 (base64):
   `sIDhqV+bsZKKVaVFVY5iB+pAzyOz2XRm3H1KXCsSJwGj5p98qnrT0Fweo1Hfe7WnyTp8mfBNdbVzUeO+mHYugA==`
 - Package metadata license: Apache-2.0
-- Android packaging keeps the musl Codex core and required static helpers.
-  glibc-only bundled `rg` / `zsh` payloads are not used; Alpine-native packages
-  provide those tools instead.
+- Android provisioning downloads the pinned archive on demand, verifies SHA-512,
+  then keeps the musl Codex core and required static helpers inside the app-private
+  Alpine rootfs. glibc-only bundled `rg` / `zsh` payloads are not used;
+  Alpine-native packages provide those tools instead.
 
 ### OpenCode CLI
 
@@ -30,6 +31,8 @@ It is a build/provenance record, not a replacement for upstream license texts.
 - x86_64 npm integrity SHA-512 (base64):
   `PK2cEuioc9181iPYtwzLC4XqBjKMTjcO/5PNOvpM41mEgsyPTYfhX+IqgYcgvNEK1BPp/8oAl62xkMgBSxlupg==`
 - Package metadata license: MIT
+- Android provisioning downloads the pinned archive on demand, verifies SHA-512,
+  and installs only the device ABI inside the app-private Alpine rootfs.
 
 ### Antigravity
 
@@ -126,6 +129,9 @@ not make Antigravity part of the managed runtime.
 - NDK: `27.0.12077973`
 - CMake: `3.22.1`
 - Supported packaged ABIs: `arm64-v8a`, `x86_64`
+- `runtimeAbi` selects one ABI per APK and defaults to `arm64-v8a`.
+- Use `-PruntimeAbi=x86_64` for an x86_64 APK.
+- Managed AI engine archives are provisioned on device and are not embedded in the base APK.
 - CI verifies `lintDebug`, `assembleDebug`, and APK `zipalign -P 16`.
 
 ## Distribution rule
