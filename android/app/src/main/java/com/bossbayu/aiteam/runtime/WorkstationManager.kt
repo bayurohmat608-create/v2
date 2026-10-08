@@ -123,7 +123,7 @@ class WorkstationManager(private val context: Context) {
             context.assets.open(assetPath).use { raw ->
                 GzipCompressorInputStream(raw).use { gzip ->
                     TarArchiveInputStream(gzip).use { tar ->
-                        var entry: TarArchiveEntry? = tar.nextTarEntry
+                        var entry: TarArchiveEntry? = tar.nextEntry as? TarArchiveEntry
                         while (entry != null) {
                             val name = entry.name.removePrefix("./")
                             if (name.isNotBlank()) {
@@ -154,7 +154,7 @@ class WorkstationManager(private val context: Context) {
                                     }
                                 }
                             }
-                            entry = tar.nextTarEntry
+                            entry = tar.nextEntry as? TarArchiveEntry
                         }
                     }
                 }
@@ -176,7 +176,7 @@ class WorkstationManager(private val context: Context) {
 
             File(staging, "tmp").apply {
                 mkdirs()
-                chmodQuietly(this, 0x1FF) // 0777; sticky bit is not exposed by File API.
+                chmodQuietly(this, 0x3FF) // 01777: world-writable temp with sticky bit.
             }
 
             val shell = File(staging, "bin/sh")
