@@ -13,6 +13,13 @@ val nodeMobileUrl = "https://github.com/digidem/nodejs-mobile/releases/download/
 val nodeMobileRoot = layout.buildDirectory.dir("node-mobile")
 val nodeMobileZip = layout.buildDirectory.file("downloads/nodejs-mobile-android-$nodeMobileVersion.zip")
 
+val alpineVersion = "3.24.2"
+val alpineRootfsSha256 = mapOf(
+    "aarch64" to "9bf70a7f18ea44094cbb5f70c58f9af129c8214745743db0e68e5502cc2ce773",
+    "x86_64" to "c5ca053cfe1d85c5b96dff8b9bc57045f7f184a30ffb6b65776409ca90388677"
+)
+val alpineRootfsDir = layout.buildDirectory.dir("alpine-rootfs")
+
 fun sha256(file: File): String {
     val digest = MessageDigest.getInstance("SHA-256")
     file.inputStream().use { input ->
@@ -56,6 +63,35 @@ val prepareNodeMobile by tasks.registering {
     }
 }
 
+val prepareAlpineRootfs by tasks.registering {
+    inputs.property("alpineVersion", alpineVersion)
+    inputs.properties(alpineRootfsSha256)
+    outputs.dir(alpineRootfsDir)
+
+    doLast {
+        val targetDir = alpineRootfsDir.get().asFile
+        targetDir.mkdirs()
+
+        alpineRootfsSha256.forEach { (arch, expectedSha) ->
+            val filename = "alpine-minirootfs-$alpineVersion-$arch.tar.gz"
+            val output = File(targetDir, filename)
+            val url = "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/$arch/$filename"
+
+            if (!output.exists() || sha256(output) != expectedSha) {
+                output.delete()
+                URI(url).toURL().openStream().use { input ->
+                    output.outputStream().use { stream -> input.copyTo(stream) }
+                }
+            }
+
+            val actualSha = sha256(output)
+            check(actualSha == expectedSha) {
+                "Alpine rootfs checksum mismatch for $arch: expected $expectedSha, got $actualSha"
+            }
+        }
+    }
+}
+
 val generatedRuntimeAssets = layout.buildDirectory.dir("generated/runtimeAssets")
 
 val syncRuntimeAssets by tasks.registering(Sync::class) {
@@ -67,6 +103,11 @@ val syncRuntimeAssets by tasks.registering(Sync::class) {
     from(repoRoot.resolve("package.json")) { into("server") }
     from(repoRoot.resolve("personas")) { into("server/personas") }
     from(repoRoot.resolve("web")) { into("web") }
+    from(alpineRootfsDir) { into("rootfs") }
+}
+
+syncRuntimeAssets.configure {
+    dependsOn(prepareAlpineRootfs)
 }
 
 android {
@@ -144,6 +185,14 @@ android {
             version = "3.22.1"
         }
     }
+
+    packaging {
+        jniLibs {
+            // PRoot is packaged as libproot_exec.so but executed via ProcessBuilder.
+            // It therefore must exist as a real file in nativeLibraryDir.
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
@@ -153,11 +202,12 @@ dependencies {
     implementation(libs.androidx.webkit)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
+    implementation("org.apache.commons:commons-compress:1.28.0")
 }
 
 
 tasks.named("preBuild").configure {
-    dependsOn(syncRuntimeAssets, prepareNodeMobile)
+    dependsOn(syncRuntimeAssets, prepareNodeMobile, prepareAlpineRootfs)
 }
 
 tasks.configureEach {
