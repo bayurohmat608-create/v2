@@ -220,6 +220,8 @@ jobs:
           name: android-runtime-smoke-evidence
           path: |
             runtime-status.json
+            runtime-restart-status.json
+            runtime-team.json
             runtime-logcat.txt
             runtime-activities.txt
             runtime-services.txt
