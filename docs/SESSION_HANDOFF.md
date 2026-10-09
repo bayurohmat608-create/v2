@@ -34,7 +34,7 @@
 - Real Zovia conversation, room-scoped authenticated API, model/engine wiring, scheduler and proof-of-execution.
 - CP20 real mention/delegate/share dispatch, persisted evidence and owner approval mechanism.
 - Native Droide PTY integration to release source, Sora editor, LSP, Git, Ubuntu, Antigravity managed integration.
-- APK Gradle build, SDK verification, emulator and physical device tests.
+- Physical ARM64 device QA, chat/terminal interaction, full feature parity and long-running lifecycle; CI builds and x86_64 emulator startup/Node HTTP are now verified (run 37878367182).
 - V2 legacy /api/chats and /api/events currently can surface Budi/Rian private messages to local UI; no Zovia messages are connected to those APIs.
 - V2 frontend uses unverified E2EE wording in security banner. Do not repeat that as a real security property.
 
@@ -83,3 +83,13 @@
 - Original logcat began only after timeout; system Bluetooth/phone crashes are not clearly from our app. Evidence: checkpoints/CP16/RUNTIME_FAILURE_37805223698.md.
 - CP16 smoke script now captures live logcat from before app launch and app/service diagnostics after failure, uses non-blocking start, and retains bounded retry with negative tests. `npm run qa:baseline` 22/22 passed locally.
 - Next: push this diagnostic-only revision to separate feature branch, rerun CI, inspect app-scoped logcat, then fix actual startup if indicated. No V2 UI code changed.
+
+
+## LATEST CP16 VERIFIED HANDOFF — 2026-10-09
+- Active published branch `feature/v2-android-build-admission-20261008` on PR #1 (draft). HEAD `ef038faf1e245ef37703d521e69af655cf1fb032` at green CI run `37878367182`.
+- Isolated Sprite `bay-chat-agent-isolated-qa-1008`, publication worktree `/home/sprite/v2-cp16-gh-publish-1009`. Preserve prior worktrees and `main`.
+- **CI PASS:** Desktop, ARM64 and x86_64 build+APK alignment, Android 36 x86_64 emulator KVM, real installed MainActivity, embedded Node.js `/api/status` health on attempt 5.
+- App-specific blocker was host Android resolving Alpine guest `/bin/sh -> /bin/busybox` incorrectly. Fixed by shared `RootfsShellValidator` used by WorkstationManager and PRootManager. Earlier `agent/` APK asset omission and KVM restrictions were also fixed.
+- Evidence and verified APK SHA-256: `checkpoints/CP16/RUNTIME_PASS_37878367182.md`; `npm run qa:baseline` **26/26 PASS**.
+- **Do not claim CP16 fully complete or app ready for release:** physical ARM64, real chat/terminal/UI testing, privacy auth E2E, model/engine provider tests and full native alignment remain pending.
+- Next: obtain physical ARM64 test evidence and verify real chat, native terminal/PRoot, agent workflows, rollback/reopen, logs and permissions before merging PR #1.

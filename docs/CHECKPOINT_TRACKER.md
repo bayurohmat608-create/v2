@@ -76,7 +76,9 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ✅ [x] CI 37778072039 builds and zipaligns ARM64 and x86_64 APKs successfully.
 - ⛔ [ ] Local Gradle build blocked by missing/unlicensed Build Tools 35.0.0.
 - ⛔ [ ] CI run 37805223698: APK installed but Activity startup timed out; port 3000 did not respond after 90 health probes. Continuous logcat capture added, awaiting next CI.
-- ⬜ [ ] ARM64 physical device installs and runs chat/runtime tests.
+- ✅ [x] **CI 37878367182 PASS:** Desktop, ARM64/x86_64 build, APK zipalign 16 KiB, Android API 36 x86_64 emulator, actual `/api/status` HTTP response. Evidence: checkpoints/CP16/RUNTIME_PASS_37878367182.md.
+- ✅ [x] Rootfs `/bin/sh` guest-absolute symlink guard shared by Alpine and PRoot; Android `agent/` assets bundled; KVM-enabled CI; 26/26 contract QA passing.
+- ⬜ [ ] ARM64 physical device installs and runs chat/runtime tests (**NOT TESTED**).
 
 ## CP17 Personal release
 - ⬜ [ ] Personal APK, source ZIP, SBOM/licenses, no credentials and clean history.
@@ -118,7 +120,8 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ⬜ [ ] P0 tests, corrected unsupported E2EE claim, personal APK and safe migration.
 
 ## Last verified status
-- Backend unit+HTTP+docs+CI smoke shell tests: **22/22 PASS** in isolated build branch. Not Android runtime QA.
-- CI Android compile and zipalign: PASS for ARM64/x86_64; latest run 37805223698 installed APK, but Android backend health timed out; app-specific cause not yet proven; physical device NOT TESTED.
+- Local baseline tests: **26/26 PASS**.
+- Latest run **37878367182**: CI Desktop, Android ARM64/x86_64 lint/assemble+16 KiB ZIP alignment, Android API 36 emulator x86_64 app launch/embedded Node HTTP health **PASS**. Evidence: checkpoints/CP16/RUNTIME_PASS_37878367182.md.
+- CP16 remains **PARTIAL** pending physical ARM64 device tests and full application feature parity/long-running runtime QA.
 - Zovia execution and Antigravity: NOT CONNECTED.
 - User privacy: legacy API still returns all old chats to local client; must introduce auth before exposing new private room.

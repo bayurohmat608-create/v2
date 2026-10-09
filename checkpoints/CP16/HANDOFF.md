@@ -30,3 +30,12 @@
 - Next task: push current CP16 fix to remote feature branch, dispatch CI, verify emulator backend reaches HTTP /api/status and logcat. Real Android app runtime NOT VERIFIED.
 - Fly.io parked by user: flyctl v0.4.114 installed in /home/sprite/flyio-baystudio-cli, but Fly auth whoami was not authenticated. Sprite URL 502 was a missing web service, Sprite commands still work. Do not pursue auth now.
 - Continue respecting V1 parity, no unapproved UI edits, strict private chat ACL, Antigravity policy gate. Source of truth docs/BLUEPRINT_MASTER_V2.md and docs/CHECKPOINT_TRACKER.md.
+
+
+## VERIFIED UPDATE — 2026-10-09 (overrides earlier pending CI claims)
+- ✅ Local contract tests: **26/26 PASS**.
+- ✅ CI run 37878367182: Desktop, Android ARM64/x86_64 build and 16 KiB APK ZIP alignment **PASS**.
+- ✅ Android API 36 x86_64 emulator boot, APK install, MainActivity startup and embedded Node `/api/status` HTTP health **PASS** after host-safe Alpine/PRoot `/bin/sh` fix.
+- ✅ APK SHA-256 and logcat evidence: [RUNTIME_PASS_37878367182.md](RUNTIME_PASS_37878367182.md).
+- ⬜ Physical ARM64 end-to-end UI, PRoot and real AI-agent execution **NOT TESTED**. CP16 as a whole remains **PARTIAL**.
+- Active draft PR: https://github.com/bayurohmat608-create/v2/pull/1
