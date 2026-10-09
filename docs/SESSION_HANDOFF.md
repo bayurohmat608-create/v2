@@ -168,3 +168,9 @@
 - Native PRoot executed from app UID with all binary paths present, but returned exit 139, usually SIGSEGV. Not yet proven why.
 - ELF DT_NEEDED: libtalloc_v2.so and libandroid-shmem.so. Production PRootManager.runtimeEnvironment sets LD_LIBRARY_PATH to nativeLibraryDir, but test harness omitted it.
 - Updated CI PRoot probe to export LD_LIBRARY_PATH to nativeLibraryDir, added contract assertion. Fresh emulator pass/fail still needed. Do not mark PRoot verified until guest command marker observed.
+
+## CP16 PRoot dependency hypothesis disproved, CI 37893656722
+- LD_LIBRARY_PATH matched production nativeLibraryDir but PRoot still exited 139.
+- App UI, Node startup/restart, HTTP read-only guards and ARM64/x86_64 compile remain green.
+- Added Android crash-buffer capture (`adb logcat -d -b crash`) on the PRoot failure path, to preserve available debuggerd/backtrace evidence without disclosing chat data.
+- PRoot remains BLOCKED; do not mark native Linux or chat persistence verified.

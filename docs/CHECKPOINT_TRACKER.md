@@ -138,3 +138,5 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - User privacy: legacy API still returns all old chats to local client; must introduce auth before exposing new private room.
 
 - ⛔ CP16 CI 37892838996: PRoot native exit 139 (suspected SIGSEGV) after app-UID binary checks. DT_NEEDED includes libtalloc_v2.so and libandroid-shmem.so; harness now mirrors production LD_LIBRARY_PATH. Emulator confirmation PENDING.
+
+- ⛔ CP16 CI 37893656722: PRoot still exits 139 even with LD_LIBRARY_PATH set. Native crash buffer collection added for next run. PRoot remains blocked.

@@ -40,6 +40,9 @@ set -e
 if [ "$native_exit" -ne 0 ]; then
   echo "CP16_PROOT_NATIVE_EXIT=$native_exit"
   echo "CP16_PROOT_NATIVE_EXEC_FAILED"
+  # Capture native crash buffer independently of ordinary app logcat.
+  # Android tombstone and debuggerd lines may be emitted only here.
+  adb logcat -d -b crash -v threadtime >runtime-proot-crash-logcat.txt 2>&1 || true
   if [[ "$result" != *CP16_PROOT_RUNAS_STDIN_READY* ]]; then
     echo "CP16_PROOT_STDIN_NOT_CONFIRMED"
   fi
