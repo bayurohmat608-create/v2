@@ -140,3 +140,5 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ⛔ CP16 CI 37892838996: PRoot native exit 139 (suspected SIGSEGV) after app-UID binary checks. DT_NEEDED includes libtalloc_v2.so and libandroid-shmem.so; harness now mirrors production LD_LIBRARY_PATH. Emulator confirmation PENDING.
 
 - ⛔ CP16 CI 37893656722: PRoot still exits 139 even with LD_LIBRARY_PATH set. Native crash buffer collection added for next run. PRoot remains blocked.
+
+- ⛔ CP16 **CI 37911832910**: native PRoot `--help` (no Alpine launch) exits 139. This isolates failure to executable startup/native dependencies before PRoot guest execution. Desktop and both APK build jobs PASS; PRoot and physical ARM64 still NOT VERIFIED.

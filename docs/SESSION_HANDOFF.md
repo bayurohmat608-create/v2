@@ -179,3 +179,10 @@
 - CI 37894231576 again returned PRoot exit 139. `runtime-proot-crash-logcat.txt` artifact is zero bytes, so no backtrace available.
 - Added `--help` binary-only preflight in app UID before guest PRoot invocation to separate ELF init from runtime translation. Preserve non-mutating probes and fail-closed status.
 - Report: checkpoints/CP16/PROOT_NATIVE_BLOCKER_37894231576.md.
+
+## CP16 PRoot isolated help probe FAIL — run 37911832910
+- On Android 36 x86_64 emulator, the fixed app-UID PRoot executable run with only `--help` returned 139 (`CP16_PROOT_HELP_EXIT=139`, `CP16_PROOT_ELF_INIT_SIGSEGV`).
+- This proves the failure is reproducible **without** Alpine rootfs translation or guest shell. Investigate ELF initialization, toolchain/NDK provenance, dynamic dependencies and Android native linking/relocation on emulator.
+- Desktop and Android ARM64/x86_64 build jobs PASS; emulator native command gate fails as designed.
+- Do not claim cause is definitively the binary itself until native backtrace, symbolization or dependency isolation confirms it. Avoid replacing binaries without provenance/hash/license checks.
+- Latest isolated diagnostic source commit `5600cb2`; draft PR #1, main untouched.
