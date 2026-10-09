@@ -150,6 +150,7 @@ test("CP16 native PRoot QA is app-UID-only and read-only", () => {
   assert.match(probe, /adb shell -T run-as "\$package" sh/);
   assert.match(probe, /libproot_exec\.so/);
   assert.match(probe, /libproot_loader\.so/);
+  assert.match(probe, /LD_LIBRARY_PATH='\$native_dir'/);
   assert.match(probe, /timeout 30s adb shell -T run-as/);
   assert.match(probe, /CP16_PROOT_EXEC_PASS/);
   assert.doesNotMatch(probe, /\badb root\b|\bsu -c\b|\bchmod 777\b/);

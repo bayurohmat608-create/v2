@@ -25,7 +25,8 @@ read -r -d '' guest_script <<EOF || true
 PROOT_LOADER='$loader'
 PROOT_TMP_DIR='$tmp'
 TMPDIR='$tmp'
-export PROOT_LOADER PROOT_TMP_DIR TMPDIR
+LD_LIBRARY_PATH='$native_dir'
+export PROOT_LOADER PROOT_TMP_DIR TMPDIR LD_LIBRARY_PATH
 echo CP16_PROOT_RUNAS_STDIN_READY
 id
 ls -l '$bin' '$loader' '$root/bin/busybox' || exit 43

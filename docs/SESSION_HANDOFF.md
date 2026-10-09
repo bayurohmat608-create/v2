@@ -162,3 +162,9 @@
 - Native PRoot exec gate: run-as stdin marker confirmed; UID u0_a150; .so PRoot binary and loader executable under /data/app, BusyBox file executable inside app-private rootfs.
 - Native command returned nonzero with no stdout/stderr; no CP16_PROOT_EXEC_PASS. This is a genuine unresolved native execution boundary, not a CI path/quoting issue.
 - Next diagnostic adds PRoot -v 9 verbose tracing and prints the native process exit status; keep gate fail-closed. Physical ARM64, interactive terminal and chat persistence still UNTESTED.
+
+## CP16 native PRoot exit 139 (CI 37892838996)
+- Desktop and Android ARM64/x86_64 compile PASS; Node restart and read-only HTTP PASS.
+- Native PRoot executed from app UID with all binary paths present, but returned exit 139, usually SIGSEGV. Not yet proven why.
+- ELF DT_NEEDED: libtalloc_v2.so and libandroid-shmem.so. Production PRootManager.runtimeEnvironment sets LD_LIBRARY_PATH to nativeLibraryDir, but test harness omitted it.
+- Updated CI PRoot probe to export LD_LIBRARY_PATH to nativeLibraryDir, added contract assertion. Fresh emulator pass/fail still needed. Do not mark PRoot verified until guest command marker observed.
