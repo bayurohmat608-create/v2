@@ -146,3 +146,6 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - 🟡 CP16 built a **QA-only clean x86_64 PRoot sidecar** with verified source hashes and ELF LOAD/RELRO 16 KiB alignment; old native executable untouched. Pending emulator proof: checkpoints/CP16/PROOT_CLEAN_CANDIDATE_20261009.md.
 
 - 🟡 [ ] CP16 QA dependency isolation: CI 37914967175 demonstrated missing talloc_enable_leak_report in QA PRoot linker. New clean, privately linked talloc candidate awaiting Android emulator verification. Production and UI untouched; not release-ready. See checkpoints/CP16/PROOT_CLEAN_CANDIDATE_20261009.md.
+
+- ✅ [x] **CP16 QA-only native PRoot x86_64 emulator PASS:** Android 36 run 38004055930 executed a fixed Alpine BusyBox guest command under app UID using clean candidate ELF and talloc; all four CI jobs passed. Evidence: checkpoints/CP16/PROOT_QA_PASS_38004055930.md.
+- ⬜ [ ] **CP16 production PRoot and physical ARM64:** NOT VERIFIED. Existing production ELF/loader unchanged, PTY/agent workflows and 16 KiB physical runtime untested. PR #1 remains draft.

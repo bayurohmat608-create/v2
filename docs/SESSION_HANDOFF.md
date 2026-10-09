@@ -191,3 +191,9 @@
 - CI 37914967175 selected the clean PRoot candidate but Android linker rejected a missing talloc_enable_leak_report symbol, exit 45.
 - QA-only x86_64 PRoot was re-linked against a separate clean talloc candidate SONAME, retaining production runtime unchanged. Provenance and expected hashes in checkpoints/CP16/PROOT_CLEAN_CANDIDATE_20261009.md.
 - Re-run contract tests and GitHub emulator CI. Require both PRoot --help and fixed read-only Alpine marker to pass. Physical ARM64 remains unverified and PR #1 must stay draft.
+
+## CP16 x86_64 candidate native Linux PASS (2026-10-10)
+- **CI 38004055930 all four jobs GREEN** on app source commit 048828ad8e6e77b201d259e004bc037a2f7012af.
+- App cold start/restart Node HTTP and read-only API guards PASS. QA-only clean PRoot candidate --help exited 0, fixed Alpine BusyBox guest command emitted CP16_PROOT_EXEC_PASS and final CP16_PROOT_READONLY_SMOKE_PASS as the app UID.
+- This is the first VERIFIED native x86_64 guest-command gate; production binary remains unchanged. Physical ARM64, actual terminal/PTY, real agents and chat persistence unverified.
+- See checkpoints/CP16/PROOT_QA_PASS_38004055930.md and draft PR #1. No main/UI changes. Do not auto-promote QA sidecar or merge the PR.
