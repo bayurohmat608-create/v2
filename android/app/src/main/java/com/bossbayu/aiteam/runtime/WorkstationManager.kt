@@ -102,8 +102,32 @@ class WorkstationManager(private val context: Context) {
     private fun expectedEngineMarker(): String =
         "codex=$CODEX_VERSION;opencode=$OPENCODE_VERSION;arch=${alpineArch()}"
 
+    /**
+     * Alpine /bin/sh is a guest-absolute symlink to /bin/busybox.
+     * File.exists()/isFile on Android follow that link in the HOST namespace
+     * and falsely report it missing. Verify the link itself and its intended
+     * in-rootfs target without following guest-absolute links on the host.
+     */
+    private fun hasAlpineShell(root: File): Boolean {
+        val shell = File(root, "bin/sh")
+        val busybox = File(root, "bin/busybox")
+        if (!busybox.isFile) return false
+
+        val link = try {
+            Os.readlink(shell.absolutePath)
+        } catch (_: Exception) {
+            null
+        }
+
+        return if (link != null) {
+            link == "/bin/busybox" || link == "busybox"
+        } else {
+            shell.isFile
+        }
+    }
+
     fun isAlpineInstalled(): Boolean {
-        return File(alpineDir, "bin/sh").isFile &&
+        return hasAlpineShell(alpineDir) &&
             File(alpineDir, ROOTFS_MARKER).readTextOrNull()?.trim() == expectedAlpineMarker()
     }
 
@@ -249,9 +273,8 @@ class WorkstationManager(private val context: Context) {
             File(staging, "opt/workspaces/rian").mkdirs()
             File(staging, "opt/aiteam/runtime").mkdirs()
 
-            val shell = File(staging, "bin/sh")
-            check(shell.exists()) {
-                "Rootfs Alpine hasil ekstraksi tidak memiliki /bin/sh."
+            check(hasAlpineShell(staging)) {
+                "Rootfs Alpine tidak memiliki /bin/sh valid yang menunjuk ke busybox internal."
             }
 
             File(staging, ROOTFS_MARKER).writeText(expectedAlpineMarker() + "\n")
