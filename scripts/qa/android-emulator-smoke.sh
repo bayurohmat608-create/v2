@@ -153,3 +153,9 @@ assert "dinonaktifkan" in deny.get("error",""), "raw terminal endpoint not block
 print("CP16_READONLY_CHAT_WORKSTATION_AND_HTTP_TERMINAL_GUARD_PASS")
 PY
 echo "CP16_READONLY_API_SMOKE_PASS"
+
+# PRoot probe uses only the Android debug app UID and an immutable command.
+# No HTTP code execution or production chat modifications.
+if [ "${CP16_PROOT_TEST:-0}" = 1 ]; then
+  bash scripts/qa/android-proot-smoke.sh
+fi

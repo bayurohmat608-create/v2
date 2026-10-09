@@ -83,6 +83,7 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ⛔ [ ] CI 37887560726 blocked **before emulator boot**: /dev/kvm permissions unavailable immediately after udev refresh. KVM fallback and permission retries added to CI.
 - ✅ [x] Android emulator **cold restart gate PASS** in CI 37887912549: fresh UI+engine PIDs, second `/api/status`, read-only `/api/team`, and no app fatal exception in captured log. Evidence: checkpoints/CP16/RESTART_PASS_37887912549.md.
 - ✅ [x] **CI 37889374776 PASS:** Android 36 emulator read-only chat and workstation API, HTTP terminal execution rejected with 409. Evidence: checkpoints/CP16/READONLY_API_PASS_37889374776.md. Native PRoot terminal and agents still NOT TESTED.
+- 🟡 [ ] Native PRoot smoke CI added using debug app UID (run-as), fixed Alpine BusyBox uname -m, 30s timeout and no HTTP execution. 29/29 local contracts PASS. Await emulator output; interactive terminal remains untested.
 - ⬜ [ ] Extended lifecycle endurance and physical ARM64 interactive chat/terminal/agent verification (**NOT TESTED**).
 - ⬜ [ ] ARM64 physical device installs and runs chat/runtime tests (**NOT TESTED**).
 

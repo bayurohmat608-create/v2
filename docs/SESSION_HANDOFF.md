@@ -134,3 +134,9 @@
 - Android 36 emulator: initial Node health, force-stop/relaunch Node health, read-only `/api/chats` and `/api/workstation/status`, HTTP `/api/terminal/exec` deliberate 409 deny all verified.
 - Evidence: `checkpoints/CP16/READONLY_API_PASS_37889374776.md`.
 - This is NOT proof of actual native PRoot command execution, persistent chat correctness or agent activity. Physical ARM64 still UNTESTED.
+
+## CP16 Native PRoot emulator gate (pending evidence)
+- Added scripts/qa/android-proot-smoke.sh: read-only Alpine BusyBox uname -m through APK native PRoot and loader as the app's debug UID via run-as, with 30-second timeout.
+- Workflow invokes this fixed test after successful UI + Node cold restart and read-only API smoke. It does NOT expose arbitrary HTTP commands, require device root, or modify user chats.
+- Local Node contract tests 29/29 PASS before emulator run; runtime PRoot result PENDING.
+- Do not confuse this with full interactive terminal/PTY, real agent execution, chat persistence, or physical ARM64 tests.

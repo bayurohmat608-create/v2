@@ -144,3 +144,14 @@ test("CP16 requires accessible KVM before emulator starts", () => {
   assert.match(runtimeJob, /sudo chmod 0666 \/dev\/kvm/);
   assert.match(runtimeJob, /for attempt in 1 2 3 4 5/);
 });
+
+test("CP16 native PRoot QA is app-UID-only and read-only", () => {
+  const probe = readFileSync(join(root, "scripts/qa/android-proot-smoke.sh"), "utf8");
+  assert.match(probe, /run-as \$package env PROOT_LOADER/);
+  assert.match(probe, /libproot_exec\.so/);
+  assert.match(probe, /libproot_loader\.so/);
+  assert.match(probe, /timeout 30s adb shell/);
+  assert.match(probe, /CP16_PROOT_EXEC_PASS/);
+  assert.doesNotMatch(probe, /\badb root\b|\bsu -c\b|\bchmod 777\b/);
+  assert.match(readFileSync(smoke, "utf8"), /CP16_PROOT_TEST:-0/);
+});
