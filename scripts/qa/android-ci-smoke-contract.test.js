@@ -58,3 +58,14 @@ test("CP16 smoke fails closed for missing APK and unhealthy runtime",t=>{
   assert.equal(result.status,22,result.stderr);
   assert.match(readFileSync(join(unhealthy.temp,"adb.log"),"utf8"),/logcat -v threadtime/);
 });
+
+
+test("CP16 requires accessible KVM before emulator starts", () => {
+  const runtimeJob = ci.slice(ci.indexOf("  android-runtime-smoke:"));
+  const kvm = runtimeJob.indexOf("name: Enable KVM for Android emulator");
+  const boot = runtimeJob.indexOf("name: Boot Android 36 and verify embedded backend");
+  assert.ok(kvm >= 0 && boot > kvm, "KVM must be prepared before emulator boot");
+  assert.match(runtimeJob, /if \[ ! -c \/dev\/kvm \]/);
+  assert.match(runtimeJob, /if \[ ! -w \/dev\/kvm \]/);
+  assert.match(runtimeJob, /udevadm trigger --name-match=kvm/);
+});
