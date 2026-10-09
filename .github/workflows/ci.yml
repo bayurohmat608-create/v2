@@ -222,7 +222,7 @@ jobs:
           disable-animations: true
           # The action runs each script line as its own sh -c invocation;
           # use one Bash process to preserve APK, ready, and trap state.
-          script: bash scripts/qa/android-emulator-smoke.sh
+          script: CP16_PROOT_TEST=1 bash scripts/qa/android-emulator-smoke.sh
 
       - name: Upload runtime smoke evidence
         if: always()
