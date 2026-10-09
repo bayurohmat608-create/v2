@@ -150,3 +150,9 @@
 - Full CI: Desktop and two Android builds PASS; emulator initial health, cold restart and read-only API PASS.
 - PRoot probe failed with code 41 after locating native .so binary: Android env reported `env: exec -0: No such file or directory`. The layered ADB shell command argument composition dropped the executable, not proof the PRoot ELF itself failed.
 - Replaced nested adb/run-as/env command string with an immutable stdin-fed shell program via `adb shell run-as com.bossbayu.aiteam sh` to retain the binary path and arguments; 29/29 local tests PASS. Emulator validation pending.
+
+## CP16 PRoot stdin probe 37891827332
+- Desktop + ARM64/x86_64 APK build, Node startup/restart, read-only API guard PASS.
+- PRoot app-UID shell command still failed with code 41 but no captured stderr/output; exact failure layer unknown.
+- Added `adb shell -T` non-PTY and immutable diagnostic markers for run-as STDIN, app UID, native library presence, and Alpine BusyBox presence. This is a diagnostic gate only; Linux shell is NOT VERIFIED.
+- Local test suite 29/29 PASS; fresh CI needed. PR remains draft, no main/UI modification.

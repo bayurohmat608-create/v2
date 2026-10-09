@@ -85,7 +85,8 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ✅ [x] **CI 37889374776 PASS:** Android 36 emulator read-only chat and workstation API, HTTP terminal execution rejected with 409. Evidence: checkpoints/CP16/READONLY_API_PASS_37889374776.md. Native PRoot terminal and agents still NOT TESTED.
 - ⛔ [ ] CI 37890582657: native PRoot smoke blocked by harness library-path discovery (exit 40), before Linux execution; Android dumpsys returned legacyNativeLibraryDir instead of nativeLibraryDir.
 - ⛔ [ ] CI 37891194307: PRoot binary path found but nested adb/run-as/env invocation dropped executable argument (env: exec -0). Exit 41; Alpine shell NOT YET VERIFIED.
-- 🟡 [ ] Native PRoot smoke now runs a fixed, stdin-fed shell under run-as to preserve executable path/args; local QA 29/29 PASS; emulator retry pending.
+- ⛔ [ ] CI 37891827332: stdin-fed PRoot app-UID shell failed with empty stderr, exit 41; no proof the guest executable ran.
+- 🟡 [ ] Added ADB -T non-PTY mode and preflight markers for run-as stdin, UID, native .so and rootfs BusyBox; local QA 29/29 PASS. Next emulator run will distinguish ADB/permissions/native runtime errors.
 - ⬜ [ ] Extended lifecycle endurance and physical ARM64 interactive chat/terminal/agent verification (**NOT TESTED**).
 - ⬜ [ ] ARM64 physical device installs and runs chat/runtime tests (**NOT TESTED**).
 

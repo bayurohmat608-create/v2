@@ -26,10 +26,17 @@ PROOT_LOADER='$loader'
 PROOT_TMP_DIR='$tmp'
 TMPDIR='$tmp'
 export PROOT_LOADER PROOT_TMP_DIR TMPDIR
+echo CP16_PROOT_RUNAS_STDIN_READY
+id
+ls -l '$bin' '$loader' '$root/bin/busybox' || exit 43
+echo CP16_PROOT_BINARY_FOUND
 exec '$bin' -0 -r '$root' -b /dev -b /proc -w / /bin/sh -c '$guest'
 EOF
-if ! result="$(printf '%s\n' "$guest_script" | timeout 30s adb shell run-as "$package" sh 2>&1)"; then
+if ! result="$(printf '%s\n' "$guest_script" | timeout 30s adb shell -T run-as "$package" sh 2>&1)"; then
   echo "CP16_PROOT_NATIVE_EXEC_FAILED"
+  if [[ "$result" != *CP16_PROOT_RUNAS_STDIN_READY* ]]; then
+    echo "CP16_PROOT_STDIN_NOT_CONFIRMED"
+  fi
   echo "$result"
   exit 41
 fi
