@@ -62,7 +62,7 @@ class PRootManager(private val context: Context) {
         require(isPRootInstalled()) {
             "PRoot runtime native belum tersedia untuk ABI perangkat ini."
         }
-        require(File(rootfsDir, "bin/sh").isFile) {
+        require(RootfsShellValidator.hasShell(rootfsDir)) {
             "Rootfs Linux belum terpasang atau tidak lengkap: ${rootfsDir.absolutePath}"
         }
 
