@@ -19,6 +19,25 @@ loader="$native_dir/libproot_loader.so"
 tmp="/data/user/0/$package/cache/proot-tmp"
 # Never execute arbitrary input; fixed read-only shell expression.
 guest='printf CP16_PROOT_EXEC_PASS; printf " "; /bin/busybox uname -m'
+# Probe ELF dynamic loading independently from ptrace and guest startup.
+# This isolates binary initialization failures from Alpine translation failures.
+probe_script="LD_LIBRARY_PATH='$native_dir'; export LD_LIBRARY_PATH; '$bin' --help"
+set +e
+probe_output="$(printf '%s\n' "$probe_script" | timeout 15s adb shell -T run-as "$package" sh 2>&1)"
+probe_exit=$?
+set -e
+echo "CP16_PROOT_HELP_EXIT=$probe_exit"
+if [ "$probe_exit" -eq 139 ]; then
+  echo "CP16_PROOT_ELF_INIT_SIGSEGV"
+  adb logcat -d -b crash -v threadtime >runtime-proot-crash-logcat.txt 2>&1 || true
+  exit 44
+fi
+if [ "$probe_exit" -ne 0 ]; then
+  echo "CP16_PROOT_HELP_FAILED"
+  printf '%s\n' "$probe_output" | head -c 1800
+  exit 45
+fi
+echo "CP16_PROOT_HELP_PASS"
 # Feed a fixed shell program through stdin so ADB command-line quoting
 # cannot drop the native executable argument.
 read -r -d '' guest_script <<EOF || true

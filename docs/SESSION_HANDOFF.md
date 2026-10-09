@@ -174,3 +174,8 @@
 - App UI, Node startup/restart, HTTP read-only guards and ARM64/x86_64 compile remain green.
 - Added Android crash-buffer capture (`adb logcat -d -b crash`) on the PRoot failure path, to preserve available debuggerd/backtrace evidence without disclosing chat data.
 - PRoot remains BLOCKED; do not mark native Linux or chat persistence verified.
+
+## CP16 checkpoint: PRoot native isolation
+- CI 37894231576 again returned PRoot exit 139. `runtime-proot-crash-logcat.txt` artifact is zero bytes, so no backtrace available.
+- Added `--help` binary-only preflight in app UID before guest PRoot invocation to separate ELF init from runtime translation. Preserve non-mutating probes and fail-closed status.
+- Report: checkpoints/CP16/PROOT_NATIVE_BLOCKER_37894231576.md.
