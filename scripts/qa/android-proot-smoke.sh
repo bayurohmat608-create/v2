@@ -30,9 +30,14 @@ echo CP16_PROOT_RUNAS_STDIN_READY
 id
 ls -l '$bin' '$loader' '$root/bin/busybox' || exit 43
 echo CP16_PROOT_BINARY_FOUND
-exec '$bin' -0 -r '$root' -b /dev -b /proc -w / /bin/sh -c '$guest'
+exec '$bin' -v 9 -0 -r '$root' -b /dev -b /proc -w / /bin/sh -c '$guest'
 EOF
-if ! result="$(printf '%s\n' "$guest_script" | timeout 30s adb shell -T run-as "$package" sh 2>&1)"; then
+set +e
+result="$(printf '%s\n' "$guest_script" | timeout 30s adb shell -T run-as "$package" sh 2>&1)"
+native_exit=$?
+set -e
+if [ "$native_exit" -ne 0 ]; then
+  echo "CP16_PROOT_NATIVE_EXIT=$native_exit"
   echo "CP16_PROOT_NATIVE_EXEC_FAILED"
   if [[ "$result" != *CP16_PROOT_RUNAS_STDIN_READY* ]]; then
     echo "CP16_PROOT_STDIN_NOT_CONFIRMED"

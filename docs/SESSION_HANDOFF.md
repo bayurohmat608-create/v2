@@ -156,3 +156,9 @@
 - PRoot app-UID shell command still failed with code 41 but no captured stderr/output; exact failure layer unknown.
 - Added `adb shell -T` non-PTY and immutable diagnostic markers for run-as STDIN, app UID, native library presence, and Alpine BusyBox presence. This is a diagnostic gate only; Linux shell is NOT VERIFIED.
 - Local test suite 29/29 PASS; fresh CI needed. PR remains draft, no main/UI modification.
+
+## CP16 true PRoot runtime boundary: run 37892321937
+- Desktop, both Android builds, emulator Node boot/restart and read-only HTTP API passed.
+- Native PRoot exec gate: run-as stdin marker confirmed; UID u0_a150; .so PRoot binary and loader executable under /data/app, BusyBox file executable inside app-private rootfs.
+- Native command returned nonzero with no stdout/stderr; no CP16_PROOT_EXEC_PASS. This is a genuine unresolved native execution boundary, not a CI path/quoting issue.
+- Next diagnostic adds PRoot -v 9 verbose tracing and prints the native process exit status; keep gate fail-closed. Physical ARM64, interactive terminal and chat persistence still UNTESTED.

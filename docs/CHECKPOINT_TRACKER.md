@@ -86,7 +86,8 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ⛔ [ ] CI 37890582657: native PRoot smoke blocked by harness library-path discovery (exit 40), before Linux execution; Android dumpsys returned legacyNativeLibraryDir instead of nativeLibraryDir.
 - ⛔ [ ] CI 37891194307: PRoot binary path found but nested adb/run-as/env invocation dropped executable argument (env: exec -0). Exit 41; Alpine shell NOT YET VERIFIED.
 - ⛔ [ ] CI 37891827332: stdin-fed PRoot app-UID shell failed with empty stderr, exit 41; no proof the guest executable ran.
-- 🟡 [ ] Added ADB -T non-PTY mode and preflight markers for run-as stdin, UID, native .so and rootfs BusyBox; local QA 29/29 PASS. Next emulator run will distinguish ADB/permissions/native runtime errors.
+- ⛔ [ ] CI 37892321937: run-as stdin confirmed, app UID u0_a150 confirmed, PRoot binary/loader and Alpine BusyBox all executable. Native PRoot exits without shell output (code 41 from harness). Real PRoot execution remains BLOCKED.
+- 🟡 [ ] Added PRoot verbose (-v 9) and native exit code reporting for next emulator run; 29/29 local QA baseline expected; no workaround that weakens security.
 - ⬜ [ ] Extended lifecycle endurance and physical ARM64 interactive chat/terminal/agent verification (**NOT TESTED**).
 - ⬜ [ ] ARM64 physical device installs and runs chat/runtime tests (**NOT TESTED**).
 
