@@ -148,7 +148,7 @@ test("CP16 requires accessible KVM before emulator starts", () => {
 test("CP16 native PRoot QA is app-UID-only and read-only", () => {
   const probe = readFileSync(join(root, "scripts/qa/android-proot-smoke.sh"), "utf8");
   assert.match(probe, /adb shell -T run-as "\$package" sh/);
-  assert.match(probe, /libproot_exec\.so/);
+  assert.doesNotMatch(probe, /libproot_exec\.so/);
   assert.match(probe, /libproot_loader\.so/);
   assert.match(probe, /LD_LIBRARY_PATH='\$native_dir'/);
   assert.match(probe, /timeout 30s adb shell -T run-as/);
