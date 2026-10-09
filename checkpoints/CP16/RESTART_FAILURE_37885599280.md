@@ -26,3 +26,9 @@
 - Android 36 ADB parser explicitly reported `java.lang.IllegalArgumentException: Unknown option: --activity-new-task`. This was a test-harness flag error, not app crash.
 - Replaced the unsupported named option with the supported `am start -S -f 0x10008000 -n ...`, where `0x10000000` = NEW_TASK and `0x00008000` = CLEAR_TASK.
 - Awaiting fresh emulator validation. Do not mark recovery as verified based on local tests.
+
+## CI runtime preflight interruption (run 37887560726)
+- Desktop, ARM64 and x86_64 compile jobs: **PASS**.
+- The runtime emulator did **not** start. Preflight KVM permission check failed: `KVM exists but remains inaccessible`.
+- CI now falls back to `sudo chmod 0666 /dev/kvm` on its ephemeral GitHub runner after udev trigger, then checks readability/writability in a bounded retry loop. This affects the runner only, not Android app or user devices.
+- Emulator restart recovery gate remains unverified until a later full run.

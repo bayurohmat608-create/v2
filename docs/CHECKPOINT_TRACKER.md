@@ -80,7 +80,8 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ✅ [x] Rootfs `/bin/sh` guest-absolute symlink guard shared by Alpine and PRoot; Android `agent/` assets bundled; KVM-enabled CI; 26/26 contract QA passing.
 - ⛔ [ ] CI 37885599280 restart gate failed with code 23: Android delivered the relaunch to a stale top Activity instead of starting a new process. Evidence: checkpoints/CP16/RESTART_FAILURE_37885599280.md.
 - ⛔ [ ] CI 37887122479: restart launch blocked by Android 36 unsupported `--activity-new-task` option (script exit 26); not an application crash. Report: checkpoints/CP16/RESTART_FAILURE_37885599280.md.
-- 🟡 [ ] Recovery harness now uses supported `am start -S -f 0x10008000`, waits old PIDs, requires new UI+engine PIDs and second HTTP health; awaiting fresh emulator CI.
+- ⛔ [ ] CI 37887560726 blocked **before emulator boot**: /dev/kvm permissions unavailable immediately after udev refresh. KVM fallback and permission retries added to CI.
+- 🟡 [ ] Recovery harness uses supported `am start -S -f 0x10008000`, waits old PIDs, requires fresh UI+engine PIDs and second HTTP health; awaiting actual emulator rerun.
 - ⬜ [ ] ARM64 physical device installs and runs chat/runtime tests (**NOT TESTED**).
 
 ## CP17 Personal release

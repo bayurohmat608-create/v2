@@ -110,3 +110,8 @@
 - Run 37887122479: Android 36 rejected `--activity-new-task` option in `am start` with `IllegalArgumentException`, giving script exit 26 before restart. No app crash claim.
 - Replaced invalid flag with `-f 0x10008000` (NEW_TASK|CLEAR_TASK); retained `-S`, old-process stop wait and fresh PID/backend response proof.
 - Unit mock explicitly rejects reintroducing `--activity-new-task`. Fresh CI validation pending.
+
+## CP16 GitHub Actions KVM flake — 2026-10-09
+- CI 37887560726: Desktop + ARM64/x86_64 build PASS; emulator preflight failed before boot because /dev/kvm device existed but lacked writable permissions after udev trigger.
+- Only GitHub runner workflow was hardened: bounded permission checks and ephemeral runner-local `sudo chmod 0666 /dev/kvm` fallback. No app or UI changes.
+- Restart smoke is STILL PENDING real CI verification. Local Node contracts should be rerun before further push.

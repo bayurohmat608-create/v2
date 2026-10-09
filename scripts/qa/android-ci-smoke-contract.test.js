@@ -123,6 +123,8 @@ test("CP16 requires accessible KVM before emulator starts", () => {
   const boot = runtimeJob.indexOf("name: Boot Android 36 and verify embedded backend");
   assert.ok(kvm >= 0 && boot > kvm, "KVM must be prepared before emulator boot");
   assert.match(runtimeJob, /if \[ ! -c \/dev\/kvm \]/);
-  assert.match(runtimeJob, /if \[ ! -w \/dev\/kvm \]/);
+  assert.match(runtimeJob, /if \[ ! -r \/dev\/kvm \] \|\| \[ ! -w \/dev\/kvm \]/);
   assert.match(runtimeJob, /udevadm trigger --name-match=kvm/);
+  assert.match(runtimeJob, /sudo chmod 0666 \/dev\/kvm/);
+  assert.match(runtimeJob, /for attempt in 1 2 3 4 5/);
 });
