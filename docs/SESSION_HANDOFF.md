@@ -128,3 +128,9 @@
 - These gates do NOT call actual models, do NOT send chat messages, and do NOT persist chat history artifacts to GitHub. They validate endpoint schemas and an intentional security boundary.
 - Local `npm run qa:baseline`: 28/28 PASS. Fresh emulator CI is required before marking this gate complete.
 - Physical ARM64 and true terminal/PRoot interaction remain UNTESTED.
+
+## CP16 read-only API runtime gate VERIFIED — 2026-10-09
+- CI **37889374776** all 4 jobs PASS on source commit `c0af543`.
+- Android 36 emulator: initial Node health, force-stop/relaunch Node health, read-only `/api/chats` and `/api/workstation/status`, HTTP `/api/terminal/exec` deliberate 409 deny all verified.
+- Evidence: `checkpoints/CP16/READONLY_API_PASS_37889374776.md`.
+- This is NOT proof of actual native PRoot command execution, persistent chat correctness or agent activity. Physical ARM64 still UNTESTED.
