@@ -98,3 +98,10 @@
 - After green Android 36 emulator startup run 37879056956, added a non-destructive second force-stop/relaunch, backend `/api/status` health probe and metadata-only `/api/team` schema gate to `scripts/qa/android-emulator-smoke.sh`.
 - CI artifacts now include `runtime-restart-status.json` and `runtime-team.json`. This is deliberately NOT a real agent/PRoot/physical-device test.
 - Local `npm run qa:baseline` 26/26 PASS; next verification is a fresh GitHub CI emulator run after publishing the new workflow and script.
+
+## CP16 Android cold-restart failure diagnosis — 2026-10-09
+- Run 37885599280: 3/4 CI jobs PASS; emulator startup passed on attempt 3 but restart gate failed with Bash exit **23** (HTTP service unavailable).
+- Captured Android logs: force-stop correctly killed both UI and engine; immediate `am start` returned result code 3 / 'intent ... delivered to currently running top-most instance' WITHOUT starting a replacement process. This is evidence of a stale Activity/task relaunch race, not app crash.
+- Follow-up script now polls both PIDs terminated, waits for task transition, invokes `am start -S --activity-new-task --activity-clear-task`, rejects warnings, and gates on fresh UI+engine PIDs and real HTTP response.
+- `npm run qa:baseline` 28/28 PASS locally; fresh Android 36 CI pending. Report: checkpoints/CP16/RESTART_FAILURE_37885599280.md.
+- Remain on isolated Sprite /home/sprite/v2-cp16-gh-publish-1009; no direct main, UI, or other Sprite changes.

@@ -39,3 +39,8 @@
 - ✅ APK SHA-256 and logcat evidence: [RUNTIME_PASS_37878367182.md](RUNTIME_PASS_37878367182.md).
 - ⬜ Physical ARM64 end-to-end UI, PRoot and real AI-agent execution **NOT TESTED**. CP16 as a whole remains **PARTIAL**.
 - Active draft PR: https://github.com/bayurohmat608-create/v2/pull/1
+
+## CP16 recovery gate follow-up (2026-10-09)
+- New cold-restart test in run 37885599280 failed (script exit 23, not Java/native crash): Android delivered a relaunch intent to dead top Activity task after force-stop.
+- Updated recovery gate with process-termination synchronization, clean task relaunch and fresh PID verification. 28/28 local contract tests PASS; emulator recheck pending.
+- See [RESTART_FAILURE_37885599280.md](RESTART_FAILURE_37885599280.md).

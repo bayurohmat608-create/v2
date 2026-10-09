@@ -57,14 +57,55 @@ echo "CP16_EMULATOR_RUNTIME_SMOKE_PASS"
 # Repeated launch must re-create the dedicated :engine process and backend.
 # This is a read-only recovery gate: no chat messages, credentials or files are modified.
 echo "CP16_RESTART_BEGIN=$(date -u +%FT%TZ)"
+first_ui_pid="$(adb shell pidof com.bossbayu.aiteam 2>/dev/null || true)"
+first_engine_pid="$(adb shell pidof com.bossbayu.aiteam:engine 2>/dev/null || true)"
+if [ -z "$first_ui_pid" ] || [ -z "$first_engine_pid" ]; then
+  echo "CP16_INITIAL_PROCESSES_MISSING"
+  exit 24
+fi
+echo "CP16_INITIAL_UI_PID=$first_ui_pid"
+echo "CP16_INITIAL_ENGINE_PID=$first_engine_pid"
 adb shell am force-stop com.bossbayu.aiteam
-adb shell am start -n com.bossbayu.aiteam/.MainActivity
+# Android 36 may still hold the top task record briefly after force-stop.
+# Do not deliver the relaunch intent to that dead top Activity.
+stopped=0
+for ((i=1;i<=20;i++)); do
+  old_ui="$(adb shell pidof com.bossbayu.aiteam 2>/dev/null || true)"
+  old_engine="$(adb shell pidof com.bossbayu.aiteam:engine 2>/dev/null || true)"
+  if [ -z "$old_ui" ] && [ -z "$old_engine" ]; then
+    stopped=1
+    break
+  fi
+  sleep 0.5
+done
+if [ "$stopped" -ne 1 ]; then
+  echo "CP16_RESTART_OLD_PROCESSES_STILL_RUNNING"
+  exit 25
+fi
+# Release Android's transition/task state, then force fresh task creation.
+sleep 1
+launch_output="$(adb shell am start -S --activity-new-task --activity-clear-task -n com.bossbayu.aiteam/.MainActivity 2>&1)" || {
+  echo "CP16_RESTART_ACTIVITY_LAUNCH_FAILED: $launch_output"
+  exit 26
+}
+echo "$launch_output"
+if [[ "$launch_output" == *"Warning: Activity not started"* ]]; then
+  echo "CP16_RESTART_STALE_TASK_INTENT"
+  exit 26
+fi
 restarted=0
 for ((i=1;i<=attempts;i++)); do
   if curl -fsS --max-time 3 http://127.0.0.1:33000/api/status >runtime-restart-status.json 2>/dev/null; then
-    restarted=1
-    echo "CP16_RESTART_HEALTHY_ATTEMPT=$i"
-    break
+    new_ui_pid="$(adb shell pidof com.bossbayu.aiteam 2>/dev/null || true)"
+    new_engine_pid="$(adb shell pidof com.bossbayu.aiteam:engine 2>/dev/null || true)"
+    if [ -n "$new_ui_pid" ] && [ -n "$new_engine_pid" ] &&
+       [ "$new_ui_pid" != "$first_ui_pid" ] && [ "$new_engine_pid" != "$first_engine_pid" ]; then
+      restarted=1
+      echo "CP16_RESTART_NEW_UI_PID=$new_ui_pid"
+      echo "CP16_RESTART_NEW_ENGINE_PID=$new_engine_pid"
+      echo "CP16_RESTART_HEALTHY_ATTEMPT=$i"
+      break
+    fi
   fi
   sleep "$wait_seconds"
 done
