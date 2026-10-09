@@ -78,6 +78,7 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ⛔ [ ] CI run 37805223698: APK installed but Activity startup timed out; port 3000 did not respond after 90 health probes. Continuous logcat capture added, awaiting next CI.
 - ✅ [x] **CI 37878367182 PASS:** Desktop, ARM64/x86_64 build, APK zipalign 16 KiB, Android API 36 x86_64 emulator, actual `/api/status` HTTP response. Evidence: checkpoints/CP16/RUNTIME_PASS_37878367182.md.
 - ✅ [x] Rootfs `/bin/sh` guest-absolute symlink guard shared by Alpine and PRoot; Android `agent/` assets bundled; KVM-enabled CI; 26/26 contract QA passing.
+- 🟡 [ ] Restart/recovery emulator gate added: force-stop/relaunch, second HTTP health check, read-only `/api/team` schema. Await CI runtime evidence.
 - ⬜ [ ] ARM64 physical device installs and runs chat/runtime tests (**NOT TESTED**).
 
 ## CP17 Personal release

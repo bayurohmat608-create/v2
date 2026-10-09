@@ -31,7 +31,7 @@ function mockHarness(t, apk=true, healthy=true) {
   chmodSync(fakeAdb,0o755);
   const fakeCurl=join(bin,"curl");
   writeFileSync(fakeCurl,healthy?
-    "#!/bin/sh\ncase \"$*\" in *'/api/status'*) printf '{\"status\":\"ok\"}';; *) printf 'ok';; esac\n":
+    "#!/bin/sh\ncase \"$*\" in *'/api/status'*) printf '{\"status\":\"ok\",\"availableModels\":[]}';; *'/api/team'*) printf '{\"members\":[{\"id\":\"owner\"},{\"id\":\"zovia\"},{\"id\":\"budi\"},{\"id\":\"rian\"}],\"chatAgentExecution\":\"not-enabled\"}';; *) printf 'ok';; esac\n":
     "#!/bin/sh\nexit 22\n");
   chmodSync(fakeCurl,0o755);
   return {temp,run:()=>spawnSync("bash",[smoke],{
@@ -45,9 +45,13 @@ test("CP16 emulator script actually installs, starts and probes backend",t=>{
   const r=h.run();
   assert.equal(r.status,0,(r.stderr||"")+r.stdout);
   assert.match(r.stdout,/CP16_EMULATOR_RUNTIME_SMOKE_PASS/);
+  assert.match(r.stdout,/CP16_RESTART_RUNTIME_SMOKE_PASS/);
+  assert.match(r.stdout,/CP16_RESTART_JSON_CONTRACT_PASS/);
   assert.match(readFileSync(join(h.temp,"adb.log"),"utf8"),/install -r runtime-apk\/app-debug\.apk/);
   assert.match(readFileSync(join(h.temp,"adb.log"),"utf8"),/am start -n com\.bossbayu\.aiteam\/\.MainActivity/);
   assert.equal(JSON.parse(readFileSync(join(h.temp,"runtime-status.json"),"utf8")).status,"ok");
+  assert.ok(JSON.parse(readFileSync(join(h.temp,"runtime-restart-status.json"),"utf8")).availableModels);
+  assert.match(readFileSync(join(h.temp,"adb.log"),"utf8"),/force-stop com\.bossbayu\.aiteam[\s\S]*am start -n com\.bossbayu\.aiteam\/\.MainActivity[\s\S]*force-stop com\.bossbayu\.aiteam/);
 });
 
 test("CP16 smoke fails closed for missing APK and unhealthy runtime",t=>{

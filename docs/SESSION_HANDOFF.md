@@ -93,3 +93,8 @@
 - Evidence and verified APK SHA-256: `checkpoints/CP16/RUNTIME_PASS_37878367182.md`; `npm run qa:baseline` **26/26 PASS**.
 - **Do not claim CP16 fully complete or app ready for release:** physical ARM64, real chat/terminal/UI testing, privacy auth E2E, model/engine provider tests and full native alignment remain pending.
 - Next: obtain physical ARM64 test evidence and verify real chat, native terminal/PRoot, agent workflows, rollback/reopen, logs and permissions before merging PR #1.
+
+## CP16 recovery QA extension (2026-10-09)
+- After green Android 36 emulator startup run 37879056956, added a non-destructive second force-stop/relaunch, backend `/api/status` health probe and metadata-only `/api/team` schema gate to `scripts/qa/android-emulator-smoke.sh`.
+- CI artifacts now include `runtime-restart-status.json` and `runtime-team.json`. This is deliberately NOT a real agent/PRoot/physical-device test.
+- Local `npm run qa:baseline` 26/26 PASS; next verification is a fresh GitHub CI emulator run after publishing the new workflow and script.
