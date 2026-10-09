@@ -140,3 +140,8 @@
 - Workflow invokes this fixed test after successful UI + Node cold restart and read-only API smoke. It does NOT expose arbitrary HTTP commands, require device root, or modify user chats.
 - Local Node contract tests 29/29 PASS before emulator run; runtime PRoot result PENDING.
 - Do not confuse this with full interactive terminal/PTY, real agent execution, chat persistence, or physical ARM64 tests.
+
+## PRoot emulator evidence run 37890582657
+- Desktop, both APK builds, Node startup/restart, read-only APIs PASS.
+- New native PRoot smoke failed code 40 before command execution: emulator dumpsys package only reported legacyNativeLibraryDir=/data/app/.../lib and primaryCpuAbi=x86_64, not nativeLibraryDir.
+- Corrected harness to derive native dir from legacyNativeLibraryDir + primaryCpuAbi, maintaining app UID and fixed read-only command. Local contract suite 29/29 PASS. Fresh CI PRoot result still PENDING.
