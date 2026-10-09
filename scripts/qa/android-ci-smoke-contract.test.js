@@ -38,7 +38,7 @@ case "$*" in
     echo first > "$MOCK_ADB_STATE"
     echo "Starting: Intent"
     ;;
-  "shell am start -S --activity-new-task --activity-clear-task -n com.bossbayu.aiteam/.MainActivity")
+  "shell am start -S -f 0x10008000 -n com.bossbayu.aiteam/.MainActivity")
     if [ "$MOCK_RESTART_WARNING" = 1 ]; then
       echo "Warning: Activity not started, intent has been delivered to currently running top-most instance."
     else
@@ -89,7 +89,8 @@ test("CP16 emulator script actually installs, starts and probes backend",t=>{
   assert.equal(JSON.parse(readFileSync(join(h.temp,"runtime-status.json"),"utf8")).status,"ok");
   assert.ok(JSON.parse(readFileSync(join(h.temp,"runtime-restart-status.json"),"utf8")).availableModels);
   assert.match(readFileSync(join(h.temp,"adb.log"),"utf8"),/force-stop com\.bossbayu\.aiteam[\s\S]*am start -n com\.bossbayu\.aiteam\/\.MainActivity[\s\S]*force-stop com\.bossbayu\.aiteam/);
-  assert.match(readFileSync(join(h.temp,"adb.log"),"utf8"),/am start -S --activity-new-task --activity-clear-task -n com\.bossbayu\.aiteam\/\.MainActivity/);
+  assert.match(readFileSync(join(h.temp,"adb.log"),"utf8"),/am start -S -f 0x10008000 -n com\.bossbayu\.aiteam\/\.MainActivity/);
+  assert.doesNotMatch(readFileSync(smoke,"utf8"),/--activity-new-task/);
 });
 
 test("CP16 smoke fails closed for missing APK and unhealthy runtime",t=>{

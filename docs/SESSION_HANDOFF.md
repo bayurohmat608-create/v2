@@ -105,3 +105,8 @@
 - Follow-up script now polls both PIDs terminated, waits for task transition, invokes `am start -S --activity-new-task --activity-clear-task`, rejects warnings, and gates on fresh UI+engine PIDs and real HTTP response.
 - `npm run qa:baseline` 28/28 PASS locally; fresh Android 36 CI pending. Report: checkpoints/CP16/RESTART_FAILURE_37885599280.md.
 - Remain on isolated Sprite /home/sprite/v2-cp16-gh-publish-1009; no direct main, UI, or other Sprite changes.
+
+## CP16 Android 36 CLI option correction
+- Run 37887122479: Android 36 rejected `--activity-new-task` option in `am start` with `IllegalArgumentException`, giving script exit 26 before restart. No app crash claim.
+- Replaced invalid flag with `-f 0x10008000` (NEW_TASK|CLEAR_TASK); retained `-S`, old-process stop wait and fresh PID/backend response proof.
+- Unit mock explicitly rejects reintroducing `--activity-new-task`. Fresh CI validation pending.

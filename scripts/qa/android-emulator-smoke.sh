@@ -84,7 +84,7 @@ if [ "$stopped" -ne 1 ]; then
 fi
 # Release Android's transition/task state, then force fresh task creation.
 sleep 1
-launch_output="$(adb shell am start -S --activity-new-task --activity-clear-task -n com.bossbayu.aiteam/.MainActivity 2>&1)" || {
+launch_output="$(adb shell am start -S -f 0x10008000 -n com.bossbayu.aiteam/.MainActivity 2>&1)" || {
   echo "CP16_RESTART_ACTIVITY_LAUNCH_FAILED: $launch_output"
   exit 26
 }

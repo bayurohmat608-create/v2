@@ -11,7 +11,7 @@
 ## Corrective gate (pending fresh emulator confirmation)
 - After force-stop, poll until **both** app processes have exited.
 - Pause briefly to allow Activity/task transition to settle.
-- Relaunch using `am start -S --activity-new-task --activity-clear-task` and reject a stale-task warning.
+- Relaunch using `am start -S -f 0x10008000` and reject a stale-task warning.
 - Require a subsequent HTTP `/api/status` response AND fresh app + engine PIDs (both different from initial).
 - Preserve deterministic negative tests for stale-task warning and unchanged PIDs.
 - Local `npm run qa:baseline`: **28/28 PASS** before CI run.
@@ -19,3 +19,10 @@
 ## Boundaries
 - This is test harness hardening, not evidence that real AI-agent chat or PRoot/terminal features work.
 - No UI modification. `main` unchanged. PR #1 remains draft. Physical ARM64 device tests are pending.
+
+
+## Follow-up CI flag correction (run 37887122479)
+- Source branch commit `49e3626` CI build jobs passed; the emulator restart gate failed with script exit 26 **before relaunch**.
+- Android 36 ADB parser explicitly reported `java.lang.IllegalArgumentException: Unknown option: --activity-new-task`. This was a test-harness flag error, not app crash.
+- Replaced the unsupported named option with the supported `am start -S -f 0x10008000 -n ...`, where `0x10000000` = NEW_TASK and `0x00008000` = CLEAR_TASK.
+- Awaiting fresh emulator validation. Do not mark recovery as verified based on local tests.
