@@ -193,4 +193,6 @@ test("CP16 clean PRoot sidecar has authenticated source bytes and safe ELF pages
   const script=readFileSync(join(root,"scripts/qa/android-proot-smoke.sh"),"utf8");
   assert.match(script,/CP16_PROOT_QA_CANDIDATE_SELECTED/);
   assert.match(script,/libproot_candidate\.so/);
+  assert.match(script,/adb shell test -f "\$candidate"/);
+  assert.match(script,/CP16_PROOT_QA_CANDIDATE_MISSING_ON_DEVICE/);
 });

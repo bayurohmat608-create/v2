@@ -14,12 +14,14 @@ if [[ ! "$native_dir" == /data/app/*/lib/x86_64 ]]; then
   exit 40
 fi
 root="/data/user/0/$package/files/workstations/alpine"
-bin="$native_dir/libproot_exec.so"
-# QA-only sidecar, production libproot_exec.so remains untouched.
-if [ -f "$native_dir/libproot_candidate.so" ]; then
-  bin="$native_dir/libproot_candidate.so"
-  echo "CP16_PROOT_QA_CANDIDATE_SELECTED"
+# Fail closed: the APK sidecar must be present in the EMULATOR, not on CI host.
+candidate="$native_dir/libproot_candidate.so"
+if ! adb shell test -f "$candidate" >/dev/null 2>&1; then
+  echo "CP16_PROOT_QA_CANDIDATE_MISSING_ON_DEVICE"
+  exit 46
 fi
+bin="$candidate"
+echo "CP16_PROOT_QA_CANDIDATE_SELECTED"
 echo "CP16_ANDROID_PAGE_SIZE=$(adb shell getconf PAGESIZE 2>/dev/null | tr -d '\r' || true)"
 loader="$native_dir/libproot_loader.so"
 tmp="/data/user/0/$package/cache/proot-tmp"

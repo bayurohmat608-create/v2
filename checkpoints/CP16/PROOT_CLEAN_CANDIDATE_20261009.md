@@ -20,3 +20,9 @@ This candidate is a separately named **QA-only sidecar** `libproot_candidate.so`
 - CI emulator candidate `--help` and actual PRoot `/bin/sh` command: **PENDING**.
 - Physical ARM64, long-lived PTY, chat persistence, AI agents, and app release-readiness: **NOT TESTED**.
 - PR stays draft. Do not merge/ship QA sidecar as a production runtime.
+
+## First candidate CI result (run 37914188645)
+- Desktop and two APK builds passed. Android emulator reported page size **4096 bytes**, ruling out 16 KiB RELRO layout as the direct cause of the **current** emulator crash.
+- APK ZIP inspection confirmed `lib/x86_64/libproot_candidate.so` is packaged.
+- Native probe still returned 139, **but the candidate-selection marker was absent**. The QA harness had incorrectly used host Bash `[ -f /data/app/... ]`, which checks the GitHub runner rather than the emulator. Consequently the old binary was tested again.
+- Fixed: ADB checks candidate existence **on-device**, must report `CP16_PROOT_QA_CANDIDATE_SELECTED`, and exits with 46 if candidate is missing. Candidate's actual runtime behavior is still **NOT VERIFIED**.
