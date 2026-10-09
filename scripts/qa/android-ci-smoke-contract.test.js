@@ -12,7 +12,7 @@ const smoke=join(root,"scripts/qa/android-emulator-smoke.sh");
 
 test("CP16 runner invokes exactly one Bash script, maintaining shell state",()=>{
   const anchor=ci.slice(ci.indexOf("name: Boot Android 36 and verify embedded backend"));
-  assert.match(anchor,/^\s*script: bash scripts\/qa\/android-emulator-smoke\.sh\s*$/m);
+  assert.match(anchor,/^\s*script: CP16_PROOT_TEST=1 bash scripts\/qa\/android-emulator-smoke\.sh\s*$/m);
   assert.doesNotMatch(anchor,/^\s*script: \|/m);
   assert.match(readFileSync(smoke,"utf8"),/^set -Eeuo pipefail$/m);
   const check=spawnSync("bash",["-n",smoke],{encoding:"utf8",timeout:3000});
