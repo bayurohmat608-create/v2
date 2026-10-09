@@ -142,3 +142,5 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ⛔ CP16 CI 37893656722: PRoot still exits 139 even with LD_LIBRARY_PATH set. Native crash buffer collection added for next run. PRoot remains blocked.
 
 - ⛔ CP16 **CI 37911832910**: native PRoot `--help` (no Alpine launch) exits 139. This isolates failure to executable startup/native dependencies before PRoot guest execution. Desktop and both APK build jobs PASS; PRoot and physical ARM64 still NOT VERIFIED.
+
+- 🟡 CP16 built a **QA-only clean x86_64 PRoot sidecar** with verified source hashes and ELF LOAD/RELRO 16 KiB alignment; old native executable untouched. Pending emulator proof: checkpoints/CP16/PROOT_CLEAN_CANDIDATE_20261009.md.

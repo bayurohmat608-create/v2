@@ -158,3 +158,39 @@ test("CP16 native PRoot QA is app-UID-only and read-only", () => {
   assert.doesNotMatch(probe, /\badb root\b|\bsu -c\b|\bchmod 777\b/);
   assert.match(readFileSync(smoke, "utf8"), /CP16_PROOT_TEST:-0/);
 });
+
+
+test("CP16 clean PRoot sidecar has authenticated source bytes and safe ELF pages", () => {
+  const {createHash} = require("node:crypto");
+  const candidate = readFileSync(join(root, "android/app/src/main/jniLibs/x86_64/libproot_candidate.so"));
+  assert.equal(createHash("sha256").update(candidate).digest("hex"), "afa7261904e9c539487e13e3a37a550d593a77f9b97e30d4933b4628a8e4015f");
+  assert.equal(candidate.subarray(0,4).toString("hex"),"7f454c46");
+  assert.equal(candidate.readUInt8(4),2,"ELF must be 64-bit");
+  assert.equal(candidate.readUInt8(5),1,"ELF must be little endian");
+  assert.equal(candidate.readUInt16LE(18),62,"ELF must target x86_64");
+  const offset=Number(candidate.readBigUInt64LE(32));
+  const phsize=candidate.readUInt16LE(54);
+  const count=candidate.readUInt16LE(56);
+  let load=0;
+  let relro=0;
+  for(let i=0;i<count;i++){
+    const start=offset+i*phsize;
+    const type=candidate.readUInt32LE(start);
+    const address=candidate.readBigUInt64LE(start+16);
+    const memory=candidate.readBigUInt64LE(start+40);
+    if(type===1){
+      load++;
+      const alignment=candidate.readBigUInt64LE(start+48);
+      assert.ok(alignment>=16384n,"LOAD alignment below 16 KiB");
+    }
+    if(type===0x6474e552){
+      relro++;
+      assert.equal((address+memory)%16384n,0n,"GNU_RELRO end is not 16 KiB aligned");
+    }
+  }
+  assert.ok(load>=2,"expected native load segments");
+  assert.equal(relro,1,"expected one GNU_RELRO");
+  const script=readFileSync(join(root,"scripts/qa/android-proot-smoke.sh"),"utf8");
+  assert.match(script,/CP16_PROOT_QA_CANDIDATE_SELECTED/);
+  assert.match(script,/libproot_candidate\.so/);
+});
