@@ -115,3 +115,10 @@
 - CI 37887560726: Desktop + ARM64/x86_64 build PASS; emulator preflight failed before boot because /dev/kvm device existed but lacked writable permissions after udev trigger.
 - Only GitHub runner workflow was hardened: bounded permission checks and ephemeral runner-local `sudo chmod 0666 /dev/kvm` fallback. No app or UI changes.
 - Restart smoke is STILL PENDING real CI verification. Local Node contracts should be rerun before further push.
+
+## CP16 recovery verified — 2026-10-09
+- **Green GitHub Actions run 37887912549**, source head `deb3177` (pre-documentation commit).
+- Desktop, ARM64 build, x86_64 build and Android 36 emulator cold-restart smoke all **PASS**.
+- App UI PID `2233→2684`; engine PID `2587→2736`; Node health responded after relaunch in 2 probes; read-only team metadata schema PASS.
+- Evidence: `checkpoints/CP16/RESTART_PASS_37887912549.md` and CI artifact `android-runtime-smoke-evidence`.
+- **Still pending:** physical ARM64 interactive device QA and full chat/terminal/agent execution, high-load/lifecycle tests, full native segment proof. CP16 stays **PARTIAL** and PR #1 remains draft.

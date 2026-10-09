@@ -81,7 +81,8 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ⛔ [ ] CI 37885599280 restart gate failed with code 23: Android delivered the relaunch to a stale top Activity instead of starting a new process. Evidence: checkpoints/CP16/RESTART_FAILURE_37885599280.md.
 - ⛔ [ ] CI 37887122479: restart launch blocked by Android 36 unsupported `--activity-new-task` option (script exit 26); not an application crash. Report: checkpoints/CP16/RESTART_FAILURE_37885599280.md.
 - ⛔ [ ] CI 37887560726 blocked **before emulator boot**: /dev/kvm permissions unavailable immediately after udev refresh. KVM fallback and permission retries added to CI.
-- 🟡 [ ] Recovery harness uses supported `am start -S -f 0x10008000`, waits old PIDs, requires fresh UI+engine PIDs and second HTTP health; awaiting actual emulator rerun.
+- ✅ [x] Android emulator **cold restart gate PASS** in CI 37887912549: fresh UI+engine PIDs, second `/api/status`, read-only `/api/team`, and no app fatal exception in captured log. Evidence: checkpoints/CP16/RESTART_PASS_37887912549.md.
+- ⬜ [ ] Extended lifecycle endurance and physical ARM64 interactive chat/terminal/agent verification (**NOT TESTED**).
 - ⬜ [ ] ARM64 physical device installs and runs chat/runtime tests (**NOT TESTED**).
 
 ## CP17 Personal release
@@ -125,7 +126,7 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 
 ## Last verified status
 - Local baseline tests: **26/26 PASS**.
-- Latest run **37878367182**: CI Desktop, Android ARM64/x86_64 lint/assemble+16 KiB ZIP alignment, Android API 36 emulator x86_64 app launch/embedded Node HTTP health **PASS**. Evidence: checkpoints/CP16/RUNTIME_PASS_37878367182.md.
+- Latest verified recovery run **37887912549**: Desktop, ARM64/x86_64 build, Android 36 x86_64 initial boot + force-stop + cold restart with new UI/engine PIDs and healthy HTTP **PASS**. Evidence: checkpoints/CP16/RESTART_PASS_37887912549.md.
 - CP16 remains **PARTIAL** pending physical ARM64 device tests and full application feature parity/long-running runtime QA.
 - Zovia execution and Antigravity: NOT CONNECTED.
 - User privacy: legacy API still returns all old chats to local client; must introduce auth before exposing new private room.

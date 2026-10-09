@@ -44,3 +44,10 @@
 - New cold-restart test in run 37885599280 failed (script exit 23, not Java/native crash): Android delivered a relaunch intent to dead top Activity task after force-stop.
 - Updated recovery gate with process-termination synchronization, clean task relaunch and fresh PID verification. 28/28 local contract tests PASS; emulator recheck pending.
 - See [RESTART_FAILURE_37885599280.md](RESTART_FAILURE_37885599280.md).
+
+## VERIFIED CP16 cold restart update — 2026-10-09
+- Green run: https://github.com/bayurohmat608-create/v2/actions/runs/37887912549
+- ✅ Initial launch, embedded Node /api/status, force-stop, clean task relaunch, fresh UI+engine PIDs, second HTTP health and team metadata.
+- ✅ Desktop, ARM64 and x86_64 APK builds and local contracts passed.
+- ⬜ Physical ARM64 and interactive product testing still pending. Full CP16 remains partial.
+- Evidence: [RESTART_PASS_37887912549.md](RESTART_PASS_37887912549.md).
