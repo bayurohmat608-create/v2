@@ -19,8 +19,16 @@ loader="$native_dir/libproot_loader.so"
 tmp="/data/user/0/$package/cache/proot-tmp"
 # Never execute arbitrary input; fixed read-only shell expression.
 guest='printf CP16_PROOT_EXEC_PASS; printf " "; /bin/busybox uname -m'
-command="run-as $package env PROOT_LOADER='$loader' PROOT_TMP_DIR='$tmp' TMPDIR='$tmp' '$bin' -0 -r '$root' -b /dev -b /proc -w / /bin/sh -c '$guest'"
-if ! result="$(timeout 30s adb shell "$command" 2>&1)"; then
+# Feed a fixed shell program through stdin so ADB command-line quoting
+# cannot drop the native executable argument.
+read -r -d '' guest_script <<EOF || true
+PROOT_LOADER='$loader'
+PROOT_TMP_DIR='$tmp'
+TMPDIR='$tmp'
+export PROOT_LOADER PROOT_TMP_DIR TMPDIR
+exec '$bin' -0 -r '$root' -b /dev -b /proc -w / /bin/sh -c '$guest'
+EOF
+if ! result="$(printf '%s\n' "$guest_script" | timeout 30s adb shell run-as "$package" sh 2>&1)"; then
   echo "CP16_PROOT_NATIVE_EXEC_FAILED"
   echo "$result"
   exit 41

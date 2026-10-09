@@ -145,3 +145,8 @@
 - Desktop, both APK builds, Node startup/restart, read-only APIs PASS.
 - New native PRoot smoke failed code 40 before command execution: emulator dumpsys package only reported legacyNativeLibraryDir=/data/app/.../lib and primaryCpuAbi=x86_64, not nativeLibraryDir.
 - Corrected harness to derive native dir from legacyNativeLibraryDir + primaryCpuAbi, maintaining app UID and fixed read-only command. Local contract suite 29/29 PASS. Fresh CI PRoot result still PENDING.
+
+## CP16 native PRoot run 37891194307
+- Full CI: Desktop and two Android builds PASS; emulator initial health, cold restart and read-only API PASS.
+- PRoot probe failed with code 41 after locating native .so binary: Android env reported `env: exec -0: No such file or directory`. The layered ADB shell command argument composition dropped the executable, not proof the PRoot ELF itself failed.
+- Replaced nested adb/run-as/env command string with an immutable stdin-fed shell program via `adb shell run-as com.bossbayu.aiteam sh` to retain the binary path and arguments; 29/29 local tests PASS. Emulator validation pending.
