@@ -186,3 +186,8 @@
 - Desktop and Android ARM64/x86_64 build jobs PASS; emulator native command gate fails as designed.
 - Do not claim cause is definitively the binary itself until native backtrace, symbolization or dependency isolation confirms it. Avoid replacing binaries without provenance/hash/license checks.
 - Latest isolated diagnostic source commit `5600cb2`; draft PR #1, main untouched.
+
+## CP16 isolated talloc linker repair (2026-10-10)
+- CI 37914967175 selected the clean PRoot candidate but Android linker rejected a missing talloc_enable_leak_report symbol, exit 45.
+- QA-only x86_64 PRoot was re-linked against a separate clean talloc candidate SONAME, retaining production runtime unchanged. Provenance and expected hashes in checkpoints/CP16/PROOT_CLEAN_CANDIDATE_20261009.md.
+- Re-run contract tests and GitHub emulator CI. Require both PRoot --help and fixed read-only Alpine marker to pass. Physical ARM64 remains unverified and PR #1 must stay draft.

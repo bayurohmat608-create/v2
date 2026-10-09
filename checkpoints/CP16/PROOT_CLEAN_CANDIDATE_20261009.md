@@ -26,3 +26,14 @@ This candidate is a separately named **QA-only sidecar** `libproot_candidate.so`
 - APK ZIP inspection confirmed `lib/x86_64/libproot_candidate.so` is packaged.
 - Native probe still returned 139, **but the candidate-selection marker was absent**. The QA harness had incorrectly used host Bash `[ -f /data/app/... ]`, which checks the GitHub runner rather than the emulator. Consequently the old binary was tested again.
 - Fixed: ADB checks candidate existence **on-device**, must report `CP16_PROOT_QA_CANDIDATE_SELECTED`, and exits with 46 if candidate is missing. Candidate's actual runtime behavior is still **NOT VERIFIED**.
+
+
+## QA-only dependency follow-up: CI 37914967175
+- App lifecycle, read-only APIs, Desktop, ARM64, x86_64 APK builds passed. Candidate marker was emitted; Android page size 4096.
+- Candidate --help exited 1, NOT 139: Android linker reported missing talloc_enable_leak_report. Thus the failing layer is dynamic linking, not a demonstrated candidate SIGSEGV.
+- Rebuilt a separate QA-only libtalloc_candidate.so from verified upstream talloc 2.5.0 using pinned Android NDK r27. Fixed native C99/POSIX feature selection and provided upstream lib/replace explicit memory wipe fallback (source retains LGPL-3.0-or-later notice); no unresolved Samba rep_* calls.
+- Re-linked PRoot directly from verified upstream 5.1.107.96 source to libtalloc_candidate.so, without post-link NEEDED rewriting.
+- New libproot_candidate.so SHA-256: 0db2f9ee88cc19894029ad33d12d18d92f582884696c7ddd8ddf9f1b59c16601.
+- New libtalloc_candidate.so SHA-256: 79ab103b2b719dbf058c43b5c067cadbb78c6d5511627d97ce9eeebc1ab288e7.
+- Production binaries, production loader, ARM64, Android UI and main remain unchanged.
+- STATUS: new candidate linker and guest command on a real emulator PENDING. Do not promote or merge yet.

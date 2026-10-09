@@ -163,7 +163,7 @@ test("CP16 native PRoot QA is app-UID-only and read-only", () => {
 test("CP16 clean PRoot sidecar has authenticated source bytes and safe ELF pages", () => {
   const {createHash} = require("node:crypto");
   const candidate = readFileSync(join(root, "android/app/src/main/jniLibs/x86_64/libproot_candidate.so"));
-  assert.equal(createHash("sha256").update(candidate).digest("hex"), "afa7261904e9c539487e13e3a37a550d593a77f9b97e30d4933b4628a8e4015f");
+  assert.equal(createHash("sha256").update(candidate).digest("hex"), "0db2f9ee88cc19894029ad33d12d18d92f582884696c7ddd8ddf9f1b59c16601");
   assert.equal(candidate.subarray(0,4).toString("hex"),"7f454c46");
   assert.equal(candidate.readUInt8(4),2,"ELF must be 64-bit");
   assert.equal(candidate.readUInt8(5),1,"ELF must be little endian");

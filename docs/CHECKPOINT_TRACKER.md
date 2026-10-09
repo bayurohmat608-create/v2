@@ -144,3 +144,5 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ⛔ CP16 **CI 37911832910**: native PRoot `--help` (no Alpine launch) exits 139. This isolates failure to executable startup/native dependencies before PRoot guest execution. Desktop and both APK build jobs PASS; PRoot and physical ARM64 still NOT VERIFIED.
 
 - 🟡 CP16 built a **QA-only clean x86_64 PRoot sidecar** with verified source hashes and ELF LOAD/RELRO 16 KiB alignment; old native executable untouched. Pending emulator proof: checkpoints/CP16/PROOT_CLEAN_CANDIDATE_20261009.md.
+
+- 🟡 [ ] CP16 QA dependency isolation: CI 37914967175 demonstrated missing talloc_enable_leak_report in QA PRoot linker. New clean, privately linked talloc candidate awaiting Android emulator verification. Production and UI untouched; not release-ready. See checkpoints/CP16/PROOT_CLEAN_CANDIDATE_20261009.md.
