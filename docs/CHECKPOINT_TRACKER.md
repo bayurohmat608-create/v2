@@ -82,6 +82,7 @@ Active CP16 branch: feature/v2-android-build-admission-20261008 (local)
 - ⛔ [ ] CI 37887122479: restart launch blocked by Android 36 unsupported `--activity-new-task` option (script exit 26); not an application crash. Report: checkpoints/CP16/RESTART_FAILURE_37885599280.md.
 - ⛔ [ ] CI 37887560726 blocked **before emulator boot**: /dev/kvm permissions unavailable immediately after udev refresh. KVM fallback and permission retries added to CI.
 - ✅ [x] Android emulator **cold restart gate PASS** in CI 37887912549: fresh UI+engine PIDs, second `/api/status`, read-only `/api/team`, and no app fatal exception in captured log. Evidence: checkpoints/CP16/RESTART_PASS_37887912549.md.
+- 🟡 [ ] New emulator-only read-only integration gate: `GET /api/chats`, `GET /api/workstation/status`, `POST /api/terminal/exec` must return HTTP 409 without executing commands. Local mocks PASS (28/28); fresh CI pending. Not a native terminal validation.
 - ⬜ [ ] Extended lifecycle endurance and physical ARM64 interactive chat/terminal/agent verification (**NOT TESTED**).
 - ⬜ [ ] ARM64 physical device installs and runs chat/runtime tests (**NOT TESTED**).
 

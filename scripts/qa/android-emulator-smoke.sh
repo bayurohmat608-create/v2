@@ -129,3 +129,27 @@ assert team.get("chatAgentExecution") == "not-enabled", "do not simulate enabled
 print("CP16_RESTART_JSON_CONTRACT_PASS")
 PY
 echo "CP16_RESTART_RUNTIME_SMOKE_PASS"
+# CP16 non-mutating API surface: no model calls, credentials, or chat writes.
+curl -fsS --max-time 5 http://127.0.0.1:33000/api/chats >runtime-chats.json
+curl -fsS --max-time 5 http://127.0.0.1:33000/api/workstation/status >runtime-workstation.json
+terminal_status="$(curl -sS --max-time 5 -X POST -H 'Content-Type: application/json' -d '{}' -o runtime-terminal-denied.json -w '%{http_code}' http://127.0.0.1:33000/api/terminal/exec)"
+if [ "$terminal_status" != "409" ]; then
+  echo "CP16_UNSAFE_HTTP_TERMINAL_STATUS=$terminal_status"
+  exit 27
+fi
+python3 - <<'PY'
+import json
+from pathlib import Path
+chats=json.loads(Path("runtime-chats.json").read_text())
+assert isinstance(chats.get("chats"),dict), "chat object missing"
+for room in ("group","direct_budi","direct_rian"):
+    assert isinstance(chats["chats"].get(room),list), f"legacy room missing: {room}"
+workstation=json.loads(Path("runtime-workstation.json").read_text())
+assert workstation.get("active") in ("alpine","ubuntu"), "active workstation invalid"
+assert workstation.get("storage",{}).get("workspaces",{}).get("budi"), "Budi workspace missing"
+assert workstation.get("storage",{}).get("workspaces",{}).get("rian"), "Rian workspace missing"
+deny=json.loads(Path("runtime-terminal-denied.json").read_text())
+assert "dinonaktifkan" in deny.get("error",""), "raw terminal endpoint not blocked"
+print("CP16_READONLY_CHAT_WORKSTATION_AND_HTTP_TERMINAL_GUARD_PASS")
+PY
+echo "CP16_READONLY_API_SMOKE_PASS"

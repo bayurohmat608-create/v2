@@ -65,9 +65,24 @@ exit 0
 `);
   chmodSync(fakeAdb,0o755);
   const fakeCurl=join(bin,"curl");
-  writeFileSync(fakeCurl,healthy?
-    "#!/bin/sh\ncase \"$*\" in *'/api/status'*) printf '{\"status\":\"ok\",\"availableModels\":[]}';; *'/api/team'*) printf '{\"members\":[{\"id\":\"owner\"},{\"id\":\"zovia\"},{\"id\":\"budi\"},{\"id\":\"rian\"}],\"chatAgentExecution\":\"not-enabled\"}';; *) printf 'ok';; esac\n":
-    "#!/bin/sh\nexit 22\n");
+  writeFileSync(fakeCurl, healthy ? String.raw`#!/bin/sh
+case "$*" in
+  *'/api/status'*) printf '{"status":"ok","availableModels":[]}' ;;
+  *'/api/team'*) printf '{"members":[{"id":"owner"},{"id":"zovia"},{"id":"budi"},{"id":"rian"}],"chatAgentExecution":"not-enabled"}' ;;
+  *'/api/chats'*) printf '{"chats":{"group":[],"direct_budi":[],"direct_rian":[]}}' ;;
+  *'/api/workstation/status'*) printf '{"active":"alpine","storage":{"workspaces":{"budi":"/w/budi","rian":"/w/rian"}}}' ;;
+  *'/api/terminal/exec'*)
+    out=""
+    previous=""
+    for arg in "$@"; do
+      if [ "$previous" = -o ]; then out="$arg"; break; fi
+      previous="$arg"
+    done
+    printf '{"error":"raw terminal execution dinonaktifkan"}' > "$out"
+    printf 409 ;;
+  *) printf ok ;;
+esac
+` : "#!/bin/sh\nexit 22\n");
   chmodSync(fakeCurl,0o755);
   return {temp,run:()=>spawnSync("bash",[smoke],{
     cwd:temp,encoding:"utf8",timeout:15000,
@@ -82,6 +97,7 @@ test("CP16 emulator script actually installs, starts and probes backend",t=>{
   assert.match(r.stdout,/CP16_EMULATOR_RUNTIME_SMOKE_PASS/);
   assert.match(r.stdout,/CP16_RESTART_RUNTIME_SMOKE_PASS/);
   assert.match(r.stdout,/CP16_RESTART_JSON_CONTRACT_PASS/);
+  assert.match(r.stdout,/CP16_READONLY_API_SMOKE_PASS/);
   assert.match(r.stdout,/CP16_RESTART_NEW_UI_PID=201/);
   assert.match(r.stdout,/CP16_RESTART_NEW_ENGINE_PID=202/);
   assert.match(readFileSync(join(h.temp,"adb.log"),"utf8"),/install -r runtime-apk\/app-debug\.apk/);

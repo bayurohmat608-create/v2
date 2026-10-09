@@ -122,3 +122,9 @@
 - App UI PID `2233→2684`; engine PID `2587→2736`; Node health responded after relaunch in 2 probes; read-only team metadata schema PASS.
 - Evidence: `checkpoints/CP16/RESTART_PASS_37887912549.md` and CI artifact `android-runtime-smoke-evidence`.
 - **Still pending:** physical ARM64 interactive device QA and full chat/terminal/agent execution, high-load/lifecycle tests, full native segment proof. CP16 stays **PARTIAL** and PR #1 remains draft.
+
+## CP16 read-only Android HTTP integration extension
+- New post-restart CI emulator smoke performs read-only GET `/api/chats`, GET `/api/workstation/status`, and confirms POST `/api/terminal/exec` is disabled (HTTP 409; no shell command execution).
+- These gates do NOT call actual models, do NOT send chat messages, and do NOT persist chat history artifacts to GitHub. They validate endpoint schemas and an intentional security boundary.
+- Local `npm run qa:baseline`: 28/28 PASS. Fresh emulator CI is required before marking this gate complete.
+- Physical ARM64 and true terminal/PRoot interaction remain UNTESTED.
