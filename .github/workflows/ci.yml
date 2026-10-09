@@ -234,6 +234,7 @@ jobs:
             runtime-restart-status.json
             runtime-team.json
             runtime-logcat.txt
+            runtime-proot-crash-logcat.txt
             runtime-activities.txt
             runtime-services.txt
             runtime-package.txt
