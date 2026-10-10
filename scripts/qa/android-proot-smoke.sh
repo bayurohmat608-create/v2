@@ -20,13 +20,25 @@ if ! adb shell test -f "$candidate" >/dev/null 2>&1; then
   echo "CP16_PROOT_QA_CANDIDATE_MISSING_ON_DEVICE"
   exit 46
 fi
-bin="$candidate"
-echo "CP16_PROOT_QA_CANDIDATE_SELECTED"
+# The production filename must point to the byte-identical, vetted x86_64
+# PRoot artifact. We test the same path referenced by PRootManager/NodeRuntimeManager.
+bin="$native_dir/libproot_exec.so"
+if ! adb shell test -f "$bin" >/dev/null 2>&1; then
+  echo "CP17_PROOT_PRODUCTION_MISSING_ON_DEVICE"
+  exit 47
+fi
+echo "CP17_PROOT_PRODUCTION_SELECTED"
+production_hash="$(adb shell sha256sum "$bin" 2>/dev/null | tr -d '\r' | cut -d ' ' -f 1)"
+if [ "$production_hash" != 0db2f9ee88cc19894029ad33d12d18d92f582884696c7ddd8ddf9f1b59c16601 ]; then
+  echo "CP17_PROOT_PRODUCTION_HASH_MISMATCH"
+  exit 48
+fi
+echo "CP17_PROOT_PRODUCTION_HASH_PASS"
 echo "CP16_ANDROID_PAGE_SIZE=$(adb shell getconf PAGESIZE 2>/dev/null | tr -d '\r' || true)"
 loader="$native_dir/libproot_loader.so"
 tmp="/data/user/0/$package/cache/proot-tmp"
 # Never execute arbitrary input; fixed read-only shell expression.
-guest='printf CP16_PROOT_EXEC_PASS; printf " "; /bin/busybox uname -m'
+guest='test -d /opt/workspaces/budi && test -d /opt/workspaces/rian && printf CP16_PROOT_EXEC_PASS && printf " " && printf CP17_PROOT_PRODUCTION_COMMAND_PASS && printf " " && /bin/busybox uname -m'
 # Probe ELF dynamic loading independently from ptrace and guest startup.
 # This isolates binary initialization failures from Alpine translation failures.
 probe_script="LD_LIBRARY_PATH='$native_dir'; export LD_LIBRARY_PATH; '$bin' --help"
@@ -58,7 +70,7 @@ echo CP16_PROOT_RUNAS_STDIN_READY
 id
 ls -l '$bin' '$loader' '$root/bin/busybox' || exit 43
 echo CP16_PROOT_BINARY_FOUND
-exec '$bin' -v 9 -0 -r '$root' -b /dev -b /proc -w / /bin/sh -c '$guest'
+exec '$bin' -v 9 -0 -r '$root' -b '/data/user/0/$package/files/shared_workspaces/budi:/opt/workspaces/budi' -b '/data/user/0/$package/files/shared_workspaces/rian:/opt/workspaces/rian' -b /dev -b /proc -b /sys -w / /bin/sh -c '$guest'
 EOF
 set +e
 result="$(printf '%s\n' "$guest_script" | timeout 30s adb shell -T run-as "$package" sh 2>&1)"
@@ -77,8 +89,9 @@ if [ "$native_exit" -ne 0 ]; then
   exit 41
 fi
 echo "$result"
-if [[ "$result" != *CP16_PROOT_EXEC_PASS* ]] || [[ "$result" != *x86_64* ]]; then
+if [[ "$result" != *CP16_PROOT_EXEC_PASS* ]] || [[ "$result" != *CP17_PROOT_PRODUCTION_COMMAND_PASS* ]] || [[ "$result" != *x86_64* ]]; then
   echo "CP16_PROOT_NATIVE_OUTPUT_INVALID"
   exit 42
 fi
 echo "CP16_PROOT_READONLY_SMOKE_PASS"
+echo "CP17_PROOT_PRODUCTION_READONLY_SMOKE_PASS"

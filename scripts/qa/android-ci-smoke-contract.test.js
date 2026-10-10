@@ -148,7 +148,7 @@ test("CP16 requires accessible KVM before emulator starts", () => {
 test("CP16 native PRoot QA is app-UID-only and read-only", () => {
   const probe = readFileSync(join(root, "scripts/qa/android-proot-smoke.sh"), "utf8");
   assert.match(probe, /adb shell -T run-as "\$package" sh/);
-  assert.doesNotMatch(probe, /libproot_exec\.so/);
+  assert.match(probe, /libproot_exec\.so/);
   assert.match(probe, /libproot_loader\.so/);
   assert.match(probe, /LD_LIBRARY_PATH='\$native_dir'/);
   assert.match(probe, /timeout 30s adb shell -T run-as/);
@@ -191,7 +191,7 @@ test("CP16 clean PRoot sidecar has authenticated source bytes and safe ELF pages
   assert.ok(load>=2,"expected native load segments");
   assert.equal(relro,1,"expected one GNU_RELRO");
   const script=readFileSync(join(root,"scripts/qa/android-proot-smoke.sh"),"utf8");
-  assert.match(script,/CP16_PROOT_QA_CANDIDATE_SELECTED/);
+  assert.match(script,/CP17_PROOT_PRODUCTION_SELECTED/);
   assert.match(script,/libproot_candidate\.so/);
   assert.match(script,/adb shell test -f "\$candidate"/);
   assert.match(script,/CP16_PROOT_QA_CANDIDATE_MISSING_ON_DEVICE/);

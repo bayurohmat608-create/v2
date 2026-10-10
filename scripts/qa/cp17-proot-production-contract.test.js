@@ -1,0 +1,35 @@
+"use strict";
+const {test}=require("node:test");
+const assert=require("node:assert/strict");
+const {readFileSync}=require("node:fs");
+const {join,resolve}=require("node:path");
+const {createHash}=require("node:crypto");
+const {spawnSync}=require("node:child_process");
+const root=resolve(__dirname,"../..");
+const native=join(root,"android/app/src/main/jniLibs");
+const sha=b=>createHash("sha256").update(b).digest("hex");
+test("CP17 x86_64 production PRoot is byte-identical to proven candidate; ARM64 unchanged",()=>{
+  const prod=readFileSync(join(native,"x86_64/libproot_exec.so"));
+  const candidate=readFileSync(join(native,"x86_64/libproot_candidate.so"));
+  assert.equal(sha(prod),"0db2f9ee88cc19894029ad33d12d18d92f582884696c7ddd8ddf9f1b59c16601");
+  assert.deepEqual(prod,candidate);
+  assert.equal(sha(readFileSync(join(native,"arm64-v8a/libproot_exec.so"))),"0215493b9b088722cfdcfc6fa428ecd6bd7996fa85670f2dff9fd06acd287297");
+  const deps=spawnSync("readelf",["-d",join(native,"x86_64/libproot_exec.so")],{encoding:"utf8"});
+  assert.equal(deps.status,0,deps.stderr);
+  assert.match(deps.stdout,/libtalloc_candidate\.so/);
+  assert.doesNotMatch(deps.stdout,/libtalloc_v2\.so/);
+});
+test("CP17 emulator proves actual production path, dependencies, bind mounts and app UID",()=>{
+  const script=readFileSync(join(root,"scripts/qa/android-proot-smoke.sh"),"utf8");
+  const lint=spawnSync("bash",["-n",join(root,"scripts/qa/android-proot-smoke.sh")]);
+  assert.equal(lint.status,0);
+  assert.match(script,/bin="\$native_dir\/libproot_exec\.so"/);
+  assert.match(script,/CP17_PROOT_PRODUCTION_SELECTED/);
+  assert.match(script,/CP17_PROOT_PRODUCTION_HASH_PASS/);
+  assert.match(script,/CP17_PROOT_PRODUCTION_COMMAND_PASS/);
+  assert.match(script,/CP17_PROOT_PRODUCTION_READONLY_SMOKE_PASS/);
+  assert.ok(script.includes('shared_workspaces/budi:/opt/workspaces/budi'));
+  assert.ok(script.includes('shared_workspaces/rian:/opt/workspaces/rian'));
+  assert.match(script,/adb shell -T run-as "\$package" sh/);
+  assert.doesNotMatch(script,/\badb root\b|\bsu -c\b|\bchmod 777\b/);
+});
