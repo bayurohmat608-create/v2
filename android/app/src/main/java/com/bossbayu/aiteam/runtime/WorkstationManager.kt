@@ -102,8 +102,11 @@ class WorkstationManager(private val context: Context) {
     private fun expectedEngineMarker(): String =
         "codex=$CODEX_VERSION;opencode=$OPENCODE_VERSION;arch=${alpineArch()}"
 
+    private fun hasAlpineShell(root: File): Boolean =
+        RootfsShellValidator.hasShell(root) && File(root, "bin/busybox").isFile
+
     fun isAlpineInstalled(): Boolean {
-        return File(alpineDir, "bin/sh").isFile &&
+        return hasAlpineShell(alpineDir) &&
             File(alpineDir, ROOTFS_MARKER).readTextOrNull()?.trim() == expectedAlpineMarker()
     }
 
@@ -249,9 +252,8 @@ class WorkstationManager(private val context: Context) {
             File(staging, "opt/workspaces/rian").mkdirs()
             File(staging, "opt/aiteam/runtime").mkdirs()
 
-            val shell = File(staging, "bin/sh")
-            check(shell.exists()) {
-                "Rootfs Alpine hasil ekstraksi tidak memiliki /bin/sh."
+            check(hasAlpineShell(staging)) {
+                "Rootfs Alpine tidak memiliki /bin/sh valid yang menunjuk ke busybox internal."
             }
 
             File(staging, ROOTFS_MARKER).writeText(expectedAlpineMarker() + "\n")

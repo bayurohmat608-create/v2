@@ -115,6 +115,7 @@ val syncRuntimeAssets by tasks.registering(Sync::class) {
     from(repoRoot.resolve("server.js")) { into("server") }
     from(repoRoot.resolve("cli.js")) { into("server") }
     from(repoRoot.resolve("package.json")) { into("server") }
+    from(repoRoot.resolve("agent")) { into("server/agent") }
     from(repoRoot.resolve("personas")) { into("server/personas") }
     from(repoRoot.resolve("web")) { into("web") }
     from(alpineRootfsDir) { into("rootfs") }
@@ -205,6 +206,10 @@ android {
             // PRoot is packaged as libproot_exec.so but executed via ProcessBuilder.
             // It therefore must exist as a real file in nativeLibraryDir.
             useLegacyPackaging = true
+            // PRoot is executed as an ELF program, not loaded through JNI.
+            // Stripping it mutates verified upstream bytes and invalidates the
+            // executable integrity gate after APK extraction.
+            keepDebugSymbols.add("**/libproot_exec.so")
         }
     }
 }
@@ -217,6 +222,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.commons.compress)
+
+    // Instrumentation runs only with a separate, CI-installed test APK.
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
 
 
