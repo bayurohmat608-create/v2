@@ -159,3 +159,22 @@ echo "CP16_READONLY_API_SMOKE_PASS"
 if [ "${CP16_PROOT_TEST:-0}" = 1 ]; then
   bash scripts/qa/android-proot-smoke.sh
 fi
+
+# CP18 dedicated Android instrumentation test APK, never shipped in production.
+if [ "${CP18_INSTRUMENTATION_TEST:-0}" = 1 ]; then
+  test_apk="$(find runtime-test-apk -type f -name '*.apk' -print -quit)"
+  test -n "$test_apk" && test -s "$test_apk" || { echo CP18_INSTRUMENTATION_APK_MISSING; exit 51; }
+  adb install -r "$test_apk"
+  set +e
+  timeout 100s adb shell am instrument -w -r \
+    -e class com.bossbayu.aiteam.runtime.PRootRuntimeInstrumentedTest \
+    com.bossbayu.aiteam.test/androidx.test.runner.AndroidJUnitRunner >runtime-instrumentation.txt 2>&1
+  instrument_exit=$?
+  set -e
+  cat runtime-instrumentation.txt
+  if [ "$instrument_exit" -ne 0 ] || ! grep -q 'OK (2 tests)' runtime-instrumentation.txt; then
+    echo "CP18_INSTRUMENTATION_FAILURE=$instrument_exit"
+    exit 52
+  fi
+  echo CP18_PROOT_MANAGER_AND_TERMINAL_INSTRUMENTATION_PASS
+fi
