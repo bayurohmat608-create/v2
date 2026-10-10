@@ -28,9 +28,9 @@ if ! adb shell test -f "$bin" >/dev/null 2>&1; then
   exit 47
 fi
 echo "CP17_PROOT_PRODUCTION_SELECTED"
-production_hash="$(adb shell sha256sum "$bin" 2>/dev/null | tr -d '\r' | cut -d ' ' -f 1)"
+production_hash="$(printf "sha256sum '%s'\n" "$bin" | adb shell -T run-as "$package" sh 2>/dev/null | tr -d '\r' | cut -d ' ' -f 1)"
 if [ "$production_hash" != 0db2f9ee88cc19894029ad33d12d18d92f582884696c7ddd8ddf9f1b59c16601 ]; then
-  echo "CP17_PROOT_PRODUCTION_HASH_MISMATCH"
+  echo "CP17_PROOT_PRODUCTION_HASH_MISMATCH actual=$production_hash"
   exit 48
 fi
 echo "CP17_PROOT_PRODUCTION_HASH_PASS"
